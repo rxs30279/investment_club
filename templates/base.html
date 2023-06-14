@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en" dir="ltr">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="{% static '/css/navigation.css' %}" />
+  <link rel="stylesheet" href="{% static '/css/base.css' %}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<title>{% block title %} {% endblock %}</title>
+
+<body>
+  <nav>
+    <ul class="menu">
+      <div class="left-logo">
+        <li class="logo"> <a href="#"><img src="/static/images/swan_logo.png"></a></li>
+        <li class="mesi">MESI</li>
+      </div>
+      <li class="item"><a href="/">Home</a></li>
+      <!-- <li class="item has-submenu">
+                  <a tabindex="0">Plans</a>
+                  <ul class="submenu">
+                      <li class="subitem"><a href="#">Freelancer</a></li>
+                      <li class="subitem"><a href="#">Startup</a></li>
+                      <li class="subitem"><a href="#">Enterprise</a></li>
+                  </ul>
+              </li> -->
+      <li class="item"><a href="/profile/">Portfolio</a></li>
+      <li class="item"><a href="/tracker/">Watchlist</a></li>
+      <li class="item"><a href="#">Competition</a></li>
+      <li class="item has-submenu">
+        <a tabindex="0">About</a>
+        <ul class="submenu">
+          <li class="subitem"><a href="#">Rules</a></li>
+          <li class="subitem"><a href="#">Links</a></li>
+        </ul>
+      </li>
+      <!-- <li class="item button"><a href="#">Log In</a></li>
+              <li class="item button secondary"><a href="#">Sign Up</a></li> -->
+      <li class="toggle"><a href="#"><i class="fas fa-bars"></i></a></li>
+    </ul>
+  </nav>
+  <script src="/static/js/nav.js"></script>
+  {% block content %} {% endblock %}
+</body>
+
+</html>

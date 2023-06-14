@@ -1,0 +1,231 @@
+@import url(https://fonts.googleapis.com/css?family=Roboto:300);
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: #000000;
+    color: #ffffff;
+    font-family: Blanco, sans-serif;
+}
+
+/* Home Screen CSS */
+
+.meeting_date {
+    display: flex;
+    flex-direction: column;
+    
+}
+
+.title_head {
+    padding: 30px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    
+}
+
+
+.monk {
+    filter: opacity(35%) blur(5px) saturate(15%);
+    align-self: flex-end;
+    padding: 0 30px;
+  }
+
+/* @media(min-width: 900px) {
+    .nav-links {
+        display: flex;
+        flex-direction: row;
+    }
+} */
+
+
+
+/* Table  */
+.container {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+}
+
+.table_container {
+    max-width: 80%;
+    text-align: center
+}
+
+@medi(min-width: 1000px){
+    .table_container {
+            max-width: 100%;
+}
+}
+th {
+    text-align: center;
+    padding: 8px;
+    background-color: #383838;
+}
+
+td {
+    padding: 8px;
+    text-align: center;
+}
+
+tr:nth-child(odd) {
+    background-color: #505050;
+}
+
+tr:nth-child(even) {
+    background-color: #696969
+}
+
+tr:hover {
+    background-color: #101111d2;
+}
+
+
+/* Button 'Add Stock' */
+.form-control {
+    margin: 0px 18px;
+    padding: 10px 4px;
+    font-size: 17px;
+    border-radius: 3px;
+    border: none;
+    background-color: none;
+}
+
+button {
+    background-color: #198104;
+    margin: 0px 18px;
+    padding: 13px 30px;
+    border-radius: 3px;
+    color: white;
+    border: none;
+    text-decoration: none;
+    font-size: 20px;   
+}
+button:hover{
+    background-color: #2c9b16;
+}
+
+.delete_record:link{
+    border: 3px solid red;
+    background-color: transparent;
+    border-radius: 5%;
+    color:white;
+    padding: 4px 9px;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    transition-duration: 0.4s;
+    cursor: pointer;
+  }
+
+  .delete_record:hover{
+    background-color:red;
+  }
+a.ticker {
+    color: white;
+    text-decoration: underline;
+}
+a.ticker:hover{
+    color: green;
+}
+
+.name_size {
+    font-size: 14px;
+}
+
+/* Login form */
+
+.login-page {
+  width: 360px;
+  padding: 8% 0 0;
+  margin: auto;
+}
+.login-page .form .login{
+  margin-top: -31px;
+    margin-bottom: 26px;
+}
+
+.login-header{
+    margin-top: 35px;
+    color: black;
+}
+.form {
+  position: relative;
+  z-index: 1;
+  background: #FFFFFF;
+  max-width: 360px;
+  margin: 0 auto 100px;
+  padding: 45px;
+  text-align: center;
+  box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.2), 0 5px 5px 0 rgba(0, 0, 0, 0.24);
+}
+.form input {
+  outline: 0;
+  background: #f2f2f2;
+  width: 100%;
+  border: 0;
+  margin: 0 0 15px;
+  padding: 15px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+.form button {
+  text-transform: uppercase;
+  outline: 0;
+  background-color: #328f8a;
+  background-image: linear-gradient(45deg,#328f8a,#08ac4b);
+  width: 100%;
+  border: 0;
+  margin: 0 0 15px;
+  padding: 15px;
+  color: #FFFFFF;
+  font-size: 14px;
+  -webkit-transition: all 0.3 ease;
+  transition: all 0.3 ease;
+  cursor: pointer;
+}
+.form .message {
+  margin: 15px 0 0;
+  color: #b3b3b3;
+  font-size: 12px;
+}
+.form .message a {
+  color: #4CAF50;
+  text-decoration: none;
+}
+
+/* index Profit and Loss Profile */
+
+.index_container{
+    margin: 70px 0px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+}
+
+@media(min-width: 900px){
+    .index_container{ 
+        margin: 70px 120px;
+    } 
+}
+.meeting_date h2{
+    margin: 3em 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 5em;
+    word-wrap: break-word;
+}
+
+.performance p {
+    margin: 20px 0;
+    display: inline-block;
+    width: auto;
+  }
+

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}
+Portfolio Profile
+{% endblock %}
+
+
+{% block content %}
+<div class="index_container">
+
+
+    <h3 class="performance">Portfolio Performance: Total value £{{Current_value|floatformat:2|intcomma}}
+        {% if Overall_percentage > 0 %} <p>current gain is </p>
+
+        {% elif Overall_percentage < 0 %} <p>current loss is </p>
+
+            {% else %}<p>Your net profit is </p>
+
+            {% endif %}
+
+            {{Overall_percentage|floatformat:2}}%
+    </h3>
+    <br><br>
+    <div class="child">
+        {% autoescape off %}
+        {{plot_div1}}
+        {% endautoescape %}
+    </div>
+
+    <br><br><br><br>
+
+    <div class="child">
+        {% autoescape off %}
+        {{plot_div1a}}
+        {% endautoescape %}
+    </div>
+
+    <br><br><br><br>
+
+    <div class="child">
+        {% autoescape off %}
+        {{plot_div2}}
+        {% endautoescape %}
+    </div>
+</div>
+{% endblock content %}

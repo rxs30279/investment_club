@@ -1,0 +1,5 @@
+db.sqlite3
+legacy
+.venv
+.vscode
+.env
