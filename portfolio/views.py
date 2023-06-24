@@ -5,40 +5,53 @@ from plotly.offline import plot
 import plotly.express as px
 import yfinance as yf
 from concurrent.futures import ThreadPoolExecutor
+from django.contrib import messages
 
+"""
+1. The code imports necessary modules and libraries, including Django, pandas, plotly, yfinance, and ThreadPoolExecutor.
 
-def search_stock(stock_ticker):
-    try:
-        data = yf.Ticker(stock_ticker).info
-        if data["symbol"] == stock_ticker:
-            return data
-        else:
-            data = {
-                "Error": "There was a problem with your provided ticker symbol. Please try again"
-            }
-    except Exception as e:
-        data = {
-            "Error": "There has been some connection error. Please try again later."
-        }
-    return data
+2. The `Profile` function is a Django view function that handles the HTTP request and generates the response. It takes the `request` object as a parameter.
 
+3. Inside the `Profile` function:
+   - The function retrieves data from the `Mesi_model` model using the `Mesi_model.objects.all()` queryset.
+   - It extracts relevant information from the queryset and creates a list of dictionaries called `holdings_data`.
+   - The `holdings_data` list is then used to create a pandas DataFrame called `df`.
 
-def search_stock_batch(stock_tickers):
-    results = {}
-    with ThreadPoolExecutor() as executor:
-        results = list(executor.map(search_stock, stock_tickers))
-    return results
+4. The function calls the `search_stock_batch` function to fetch stock prices from Yahoo Finance based on the EPIC (Exchange Product Identifier) values in the DataFrame. The `search_stock_batch` function uses a ThreadPoolExecutor to concurrently search for multiple stock prices.
 
+5. The stock prices obtained from Yahoo Finance are added to the DataFrame as a new column called "price".
+
+6. Several calculations are performed on the DataFrame to calculate the following:
+   - The current value of each holding (`Value Now`) based on the number of shares held and the current stock price.
+   - The gain or loss (`Gain-Loss`) for each holding by subtracting the total cost from the current value.
+   - The percentage gain or loss (`Percentage`) for each holding.
+   - The overall percentage gain or loss (`Overall_percentage`) for all holdings combined.
+   - The current overall value of the portfolio (`Current_value`) by summing the "Value Now" column.
+
+7. The code uses the plotly library to create interactive visualizations:
+   - `fig1`: A grouped bar chart showing the total overall cost, value now, and gain-loss for each company in the portfolio.
+   - `fig1a`: A bar chart showing the percentage gain or loss for each company in the portfolio.
+   - `fig2`: A sunburst chart showing the distribution of the portfolio value by industry sector and index.
+
+8. The plots (`fig1`, `fig1a`, and `fig2`) are customized with layout settings, such as font, title, colors, and axis labels.
+
+9. The `plot` function from the plotly.offline module is used to convert the plots into HTML div elements.
+
+10. The function creates a context dictionary containing the calculated values (`Current_value` and `Overall_percentage`) and the HTML div elements (`plot_div1`, `plot_div1a`, and `plot_div2`).
+
+11. Finally, the function renders the "profile.html" template with the context dictionary as the data for rendering the page.
+
+The code essentially retrieves data from the database, performs calculations and data manipulation using pandas, fetches stock prices from Yahoo Finance, creates visualizations using plotly, and renders the resulting data and visualizations in an HTML template.
+"""
 
 def Profile(request):
+    # Extract relevant information from the queryset and create a list of dictionaries in 'holdings_data'
     qs = Mesi_model.objects.all()
     holdings_data = [
         {
             "Company": x.company,
             "Total Overall Cost": x.total_cost,
             "Holding": x.holding,
-            # "Value Now": x.value_now,
-            # "Gain-Loss": x.gain_loss,
             "Industry": x.industry,
             "Index": x.index,
             "EPIC": x.epic,
@@ -47,15 +60,32 @@ def Profile(request):
     ]
     # Dataframe creation and calculations
     df = pd.DataFrame(holdings_data)
-
+    
     # Fetch the stock price from yahoo finance
-    yahoo = search_stock_batch(df["EPIC"])
-
+    try:
+        yahoo = search_stock_batch(df["EPIC"])
+    
+    except Exception as e:
+        data = {
+            "Error": "There has been some error. Please try again later."
+        }
+    
     Price = []
-    for stock in yahoo:
-        # extract the desired price item from each dictionary in yahoo
-        current_price = stock["currentPrice"]
-        Price.append(current_price)
+    try:
+        for stock in yahoo:
+            try:
+                # extract the desired price item from each dictionary in yahoo
+                current_price = stock["currentPrice"]
+                Price.append(current_price)
+            except KeyError:
+                # Handle the case where the "currentPrice" key is not present in the dictionary
+                Price.append(None)
+            except Exception as e:
+                  # Handle any other exceptions that may occur
+                Price.append(None)
+    except Exceeption as e:
+        Price = []
+            
 
     df_price = pd.DataFrame(Price, columns=["price"])
     df = pd.concat([df, df_price], axis=1)
@@ -72,9 +102,11 @@ def Profile(request):
         (df["Value Now"].sum() - df["Total Overall Cost"].sum())
         / df["Total Overall Cost"].sum()
     ) * 100
-    # Calc current overall value, sum the column
+    # Calc current overall value, sum the 'Value Now' column
     Current_value = df["Value Now"].sum()
-
+   
+    #### CREATE GRAPHS ############
+    # Create a grouped bar chart to represent Total Overall Cost, Value Now, and Gain-Loss
     fig1 = px.bar(
         df,
         x="Company",
@@ -155,3 +187,27 @@ def Profile(request):
         "plot_div2": sunburst,
     }
     return render(request, "profile.html", context)
+
+############## Functions ########################
+
+def search_stock(stock_ticker):
+    try:
+        data = yf.Ticker(stock_ticker).info
+        if data["symbol"] == stock_ticker:
+            return data
+        else:
+            data = {
+                "Error": "There was a problem with your provided ticker symbol. Please try again"
+            }
+    except Exception as e:
+        data = {
+            "Error": "There has been some connection error. Please try again later."
+        }
+    return data
+
+
+def search_stock_batch(stock_tickers):
+    results = {}
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(search_stock, stock_tickers))
+    return results
