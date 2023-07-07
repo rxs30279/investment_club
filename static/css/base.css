@@ -17,7 +17,6 @@
 body {
   color: var(--blue6);
   font-family: "Roboto", sans-serif;
-  font-size: 16px;
   background: rgb(2, 0, 36);
   background-repeat: repeat;
 }
