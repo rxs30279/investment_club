@@ -1,14 +1,32 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
+{% load humanize %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Competition</title>
-</head>
+{% block title %}
+Portfolio Profile
+{% endblock %}
 
-<body>
-    <h1>Competition</h1>
+
+{% block content %}
+
+
+<div class="index_container">
+    <div class="child">
+        {% autoescape off %}
+        {{plot_div1}}
+        {% endautoescape %}
+    </div>
+
+
+
+    <div class="child">
+        {% for plot_div in plot_divs %}
+        {{ plot_div|safe }}
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock content %}
+
 </body>
 
 </html>

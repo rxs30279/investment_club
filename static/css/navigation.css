@@ -1,12 +1,10 @@
-
-
 nav {
-  box-shadow: 0 2px 14px 0px rgba(92, 85, 85, 0.918);
-  background-color: #2F2B2C;
+  box-shadow: 0 2px 8px 0px rgba(66, 74, 74, 0.335);
+  background-color: var(--blue1);
   padding-right: 15px;
 }
 a {
-  color: white;
+  color: var(--blue4);
   text-decoration: none;
 }
 .menu,
@@ -24,7 +22,7 @@ a {
 
 .mesi {
   font-size: 32px;
-  color:white;
+  color: var(--blue5);
   margin-right: auto;
 }
 
@@ -171,12 +169,11 @@ a {
 
   .logo {
     order: 0;
-   
   }
   .mesi {
     font-size: 32px;
-    color: white;
-    display:block;
+    color: var(--blue5);
+    display: block;
     margin-right: auto;
   }
   .item {

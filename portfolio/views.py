@@ -64,11 +64,12 @@ def Profile(request):
     # Fetch the stock price from yahoo finance
     try:
         yahoo = search_stock_batch(df["EPIC"])
-    
+       
     except Exception as e:
         data = {
             "Error": "There has been some error. Please try again later."
         }
+       
     
     Price = []
     try:
@@ -83,13 +84,13 @@ def Profile(request):
             except Exception as e:
                   # Handle any other exceptions that may occur
                 Price.append(None)
-    except Exceeption as e:
-        Price = []
+    except Exception as e:
+        Price = [] #returns an empty value if error
             
 
-    df_price = pd.DataFrame(Price, columns=["price"])
-    df = pd.concat([df, df_price], axis=1)
-
+    df_price = pd.DataFrame(Price, columns=["price"]) # Place the price information form yahoo in a df
+    df = pd.concat([df, df_price], axis=1) # Add in the price df ('df_price') to the original dataframe 'df'
+    # df["Total Overall Cost"] =  df["Total Overall Cost"] * 1.015  # Tried to re-adjust the purchase price to include tax etc
     df["Value Now"] = (df["Holding"] * df["price"]) / 100  # calc Value Now
     df["Gain-Loss"] = df["Value Now"] - df["Total Overall Cost"]  # calc Gain Loss
 
@@ -104,7 +105,7 @@ def Profile(request):
     ) * 100
     # Calc current overall value, sum the 'Value Now' column
     Current_value = df["Value Now"].sum()
-   
+    
     #### CREATE GRAPHS ############
     # Create a grouped bar chart to represent Total Overall Cost, Value Now, and Gain-Loss
     fig1 = px.bar(
@@ -112,34 +113,31 @@ def Profile(request):
         x="Company",
         y=["Total Overall Cost", "Value Now", "Gain-Loss"],
         labels={"Company": "Company Name"},
+        title="Profit and Loss Profile",
         color_discrete_map={  # replaces default color mapping by value
-            "Total Overall Cost": "RebeccaPurple",
-            "Value Now": "MediumPurple",
-            "Gain-Loss": "#669932",
+            "Total Overall Cost": "#2c697a",
+            "Value Now": "#2e8897",
+            "Gain-Loss": "#37c8cc",
         },
         barmode="group",
-        height=400,
-    ).update_xaxes(categoryorder="min descending")
+        # height=400,
+    ).update_xaxes(categoryorder="total descending")
 
     fig1.update_layout(  # customize font and legend orientation & position
-        font=dict(family="Arial", size=15),
-        title_text="Profit and Loss Profile",
+        yaxis=dict(title="Value in UK Pounds",ticks="outside",tickwidth=0, tickcolor='#020024',  ticklen=10,showgrid=False,tickprefix="£"),
+        font = dict(family="Roboto", size=15, color="#2e8897"), #color blue 2
+        plot_bgcolor='rgba(0,0,0,0)',  # Transparent background
+        paper_bgcolor='rgba(0,0,0,0.01)',  # Semi-transparent background
         title_x=0.5,
         title_y=0.97,
-        template="plotly_white",
-        yaxis=dict(
-            title="Value in UK Pounds",
-        ),
-        legend=dict(
-            title=None, orientation="h", y=1, yanchor="bottom", x=0.5, xanchor="center"
-        ),
-    )
-    fig1.update_yaxes(
-        tickprefix="£",
-        showgrid=True,
-    )
+        legend=dict(title=None, orientation="h", y=1, yanchor="bottom", x=0.5, xanchor="center"),
+    ).update_xaxes(categoryorder="min descending")
+    
+    # fig1.update_yaxes(tickprefix="£")
+    # fig1.update_yaxes(showgrid=False,tickprefix="£")
 
-    color_map = {True: "#15E8E5", False: "#e91417"}
+    color_map = {True: "#37c8cc", False: "#2c697a"}
+    
     fig1a = px.bar(
         df,
         x="Company",
@@ -147,33 +145,38 @@ def Profile(request):
         labels={"Company": "Company Name"},
         color=df["Percentage"] > 0,
         color_discrete_map=color_map,
-        height=400,
+        # height=400,
     ).update_xaxes(categoryorder="min descending")
 
     fig1a.update_layout(
-        font=dict(family="Arial", size=15),
         title_text="Percentage Gain and Loss",
         title_x=0.5,
         title_y=0.97,
+        font = dict(family="Roboto", size=15, color="#2e8897"), #color blue 2
+        plot_bgcolor='rgba(0,0,0,0)',  # Transparent background
+        paper_bgcolor='rgba(0,0,0,0.01)',  # Semi-transparent background
         showlegend=False,
         template="plotly_white",
-        yaxis=dict(title="Percentage", ticksuffix="%"),
+        yaxis=dict(title="Percentage", ticksuffix="%",ticks="outside",tickwidth=0, tickcolor='#020024',  ticklen=10,showgrid=False),
     )
     fig2 = px.sunburst(
         df,
         color="Industry",
         values="Value Now",
         path=["Index", "Industry"],
-        color_discrete_sequence=px.colors.qualitative.Dark24,
         hover_name="Company",
-        height=700,
+       
     )
     fig2.update_layout(  # customize font and legend orientation & position
-        font=dict(family="Arial", size=15, color="black"),
+        font = dict(family="Roboto", size=15), #color blue 2
         title="Portfolio: By Industy Sector <br><sup>Area is proportional to current sector value</sup>",
+        title_font_color="#2e8897",
+        plot_bgcolor='rgba(0,0,0,0)',  # Transparent background
+        paper_bgcolor='rgba(0,0,0,0.01)',  # Semi-transparent background
         title_x=0.5,
         title_y=0.95,
-        template="plotly_white",
+        height = 600,
+       
     )
 
     grouped_bar = plot(fig1, output_type="div")
@@ -209,5 +212,5 @@ def search_stock(stock_ticker):
 def search_stock_batch(stock_tickers):
     results = {}
     with ThreadPoolExecutor() as executor:
-        results = list(executor.map(search_stock, stock_tickers))
+        results = list(executor.map(search_stock, stock_tickers))   
     return results
