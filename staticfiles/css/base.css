@@ -1,0 +1,268 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --black: #151a1e;
+  --blue1: #20323c;
+  --blue2: #284d5b;
+  --blue3: #2c697a;
+  --blue4: #2e8897;
+  --blue5: #30a7b3;
+  --blue6: #37c8cc;
+}
+
+body {
+  color: var(--blue6);
+  font-family: "Roboto", sans-serif;
+  background: rgb(2, 0, 36);
+  background-repeat: repeat;
+}
+
+/* Home Page */
+.meeting_date {
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.title_head {
+  padding: 30px 0;
+}
+
+.news {
+  color: var(--blue4);
+}
+.news p:nth-child(2) {
+  font-size: 0.8rem;
+}
+.news a {
+  color: var(--blue6);
+}
+.news img {
+  width: 390px;
+  height: auto;
+}
+
+/* Watchlist Table   */
+.container_watchlist {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  color: var(--blue6);
+  font-size: 20px;
+}
+.input_btn {
+  height: 10rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.hide {
+  display: none;
+}
+
+th {
+  text-align: center;
+  padding: 8px;
+  background-color: var(--black);
+}
+
+td {
+  padding: 8px;
+  text-align: center;
+}
+
+tr:nth-child(odd) {
+  background-color: var(--blue1);
+}
+
+tr:nth-child(even) {
+  background-color: var(--blue2);
+}
+
+tr:hover {
+  background-color: var(--black);
+}
+
+/* Button 'Add Stock' */
+.form-control {
+  margin: 0px 18px;
+  margin-bottom: 10px;
+  padding: 10px 4px;
+  font-size: 17px;
+  border-radius: 3px;
+  border: none;
+  background-color: var(--blue1);
+  color: var(--blue5);
+}
+::placeholder {
+  font-weight: 400;
+  color: var(--blue2);
+}
+
+button {
+  background-color: var(--blue1);
+  margin: 0px 18px;
+  padding: 13px 30px;
+  border-radius: 3px;
+  color: var(--blue4);
+  border: none;
+  text-decoration: none;
+  font-size: 20px;
+}
+button:hover {
+  background-color: var(--blue2);
+}
+
+.delete_record:link {
+  border: 3px solid var(--blue4);
+  background-color: transparent;
+  border-radius: 5%;
+  color: var(--blue4);
+  padding: 4px 9px;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 4px 2px;
+  transition-duration: 0.4s;
+  cursor: pointer;
+}
+
+.delete_record:hover {
+  background-color: var(--blue6);
+}
+a.ticker {
+  color: var(--blue5);
+  text-decoration: underline;
+}
+a.ticker:hover {
+  color: var(--blue6);
+}
+
+.name_size {
+  font-size: 14px;
+}
+
+/* Login form */
+
+.login-page {
+  width: 360px;
+  padding: 8% 0 0;
+  margin: auto;
+}
+.login-page .form .login {
+  margin-top: -31px;
+  margin-bottom: 26px;
+}
+
+.login-header {
+  margin-top: 35px;
+  color: black;
+}
+.form {
+  position: relative;
+  z-index: 1;
+  background: #ffffff;
+  max-width: 360px;
+  margin: 0 auto 100px;
+  padding: 45px;
+  text-align: center;
+  box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.2), 0 5px 5px 0 rgba(0, 0, 0, 0.24);
+}
+.form input {
+  outline: 0;
+  background: #f2f2f2;
+  width: 100%;
+  border: 0;
+  margin: 0 0 15px;
+  padding: 15px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+.form button {
+  text-transform: uppercase;
+  outline: 0;
+  background-color: #328f8a;
+  background-image: linear-gradient(45deg, #328f8a, #08ac4b);
+  width: 100%;
+  border: 0;
+  margin: 0 0 15px;
+  padding: 15px;
+  color: #ffffff;
+  font-size: 14px;
+  -webkit-transition: all 0.3 ease;
+  transition: all 0.3 ease;
+  cursor: pointer;
+}
+.form .message {
+  margin: 15px 0 0;
+  color: #b3b3b3;
+  font-size: 12px;
+}
+.form .message a {
+  color: #4caf50;
+  text-decoration: none;
+}
+
+/* Portfolio Profile Profit and Loss Profile page */
+
+.index_container {
+  margin: 70px 0px;
+  display: flex;
+  flex-direction: column;
+}
+
+.meeting_date h2 {
+  margin: 3em 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 5em;
+  word-wrap: break-word;
+}
+
+.performance p {
+  margin: 20px 0;
+  display: inline-block;
+  width: auto;
+}
+
+@media (min-width: 900px) {
+  .index_container {
+    margin: 70px 150px;
+  }
+  .performance h3 {
+    text-align: center;
+    margin: 0 5rem;
+  }
+}
+
+@media (min-width: 1000px) {
+  .table_container {
+    max-width: 100%;
+  }
+  .news img {
+    height: 43rem;
+    width: auto;
+  }
+}
+
+/* Start to hide some of the table contents */
+@media (min-width: 750px) {
+  .input_btn {
+    height: 5rem;
+    display: flex;
+    flex-direction: row;
+  }
+  .hide {
+    display: table-cell;
+  }
+}
