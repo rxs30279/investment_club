@@ -3,3 +3,5 @@ legacy
 .venv
 .vscode
 .env
+color scheme.png
+*.pyc
