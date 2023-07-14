@@ -5,3 +5,4 @@ legacy
 .env
 color scheme.png
 *.pyc
+requirements_minimum.txt
