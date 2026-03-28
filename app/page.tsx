@@ -23,18 +23,20 @@ export default function OverviewPage() {
 
   const fetchData = useCallback(async () => {
   setError(null);
+  setLoading(true);
   try {
-    // Get all transactions from your data file
-    const transactions = getTransactions();
+    // Get transactions from Supabase - need to await
+    const transactions = await getTransactions();
     
-    // Fetch current prices from your API route (no tickers needed now)
+    // Fetch current prices
     const prices = await fetchPrices();
     
     // Calculate positions from transactions using current prices
-    const positions = calculatePositions(transactions, prices);
+    const positions = await calculatePositions(transactions, prices);
     
     // Calculate portfolio summary
     const calculated = calculatePortfolioSummary(positions);
+    
     setPortfolio(calculated);
     setLastUpdated(new Date());
   } catch (error) {
@@ -43,7 +45,7 @@ export default function OverviewPage() {
   } finally {
     setLoading(false);
   }
-  }, []);
+}, []);
 
   useEffect(() => {
     fetchData();

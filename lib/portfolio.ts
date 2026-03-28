@@ -86,22 +86,27 @@ export async function saveDividends(dividends: Dividend[]): Promise<void> {
 
 // ==================== HOLDINGS REFERENCE ====================
 export async function getHoldingsReference(): Promise<any[]> {
+  console.log('Fetching holdings from Supabase...');
+  
   const { data, error } = await supabase
     .from('holdings')
     .select('*')
     .order('id', { ascending: true });
   
   if (error) {
-    console.error('Error fetching holdings:', error);
+    console.error('Error fetching holdings - full error:', error);
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
     return [];
   }
   
+  console.log('Holdings fetched successfully:', data?.length);
   return data || [];
 }
 
 export async function saveHolding(holding: any): Promise<void> {
   const { error } = await supabase
-    .from('holdings')
+    .from('holdings_view')
     .upsert({
       id: holding.id,
       name: holding.name,
