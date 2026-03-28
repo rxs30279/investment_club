@@ -163,10 +163,10 @@ export default function PerformancePage() {
   };
 
   const getCompanyName = (holdingId: number): string => {
-    const holdings = getHoldingsReference();
-    const holding = holdings.find(h => h.id === holdingId);
-    return holding?.name || `Holding ${holdingId}`;
-  };
+  const holdings = getHoldingsReference();
+  const holding = holdings.find((h: { id: number; name: string }) => h.id === holdingId);
+  return holding?.name || `Holding ${holdingId}`;
+};
 
   const totalDividends = dividends.reduce((sum, d) => sum + d.amount, 0);
   const totalReturnWithDividends = (portfolio?.totalPnl || 0) + totalDividends;
