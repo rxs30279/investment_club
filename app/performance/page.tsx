@@ -13,7 +13,8 @@ import {
   getDividends,
   saveDividends,
   fetchFTSE100Data,
-  calculatePortfolioValueOnDate
+  calculatePortfolioValueOnDate,
+  generateRealMonthlyReturns
 } from '@/lib/portfolio';
 import RefreshButton from '@/components/RefreshButton';
 
@@ -36,6 +37,7 @@ export default function PerformancePage() {
   const [portfolioValueJan1, setPortfolioValueJan1] = useState<number | null>(null);
   const [ftseStartDate, setFtseStartDate] = useState<string | null>(null);
   const [ftseLoading, setFtseLoading] = useState(true);
+  const [monthlyTableData, setMonthlyTableData] = useState<any[]>([]);
   const [ytdReturn, setYtdReturn] = useState<number>(0);
   const [monthlyView, setMonthlyView] = useState<'portfolio' | 'ftse'>('portfolio');
   const [newDividend, setNewDividend] = useState({
@@ -91,16 +93,45 @@ export default function PerformancePage() {
     }
   };
 
+  // Generate monthly data
+  const generateMonthlyData = async () => {
+    try {
+      const transactions = await getTransactions();
+      const monthlyReturns = await generateRealMonthlyReturns(transactions);
+      
+      const formattedData = monthlyReturns.map(m => ({
+        month: m.month,
+        portfolioReturn: m.portfolioReturn,
+        ftseReturn: m.ftseReturn,
+        bestStock: '',
+        bestReturn: 0,
+        worstStock: '',
+        worstReturn: 0,
+      }));
+      
+      setMonthlyTableData(formattedData);
+      
+      let cumulative = 1;
+      for (const m of monthlyReturns) {
+        cumulative = cumulative * (1 + m.portfolioReturn / 100);
+      }
+      const ytd = (cumulative - 1) * 100;
+      setYtdReturn(ytd);
+    } catch (error) {
+      console.error('Error generating monthly data:', error);
+    }
+  };
+
   // Main load function
   const loadData = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      const transactions = getTransactions();
-      const holdings = getHoldingsReference();
-      const divs = getDividends();
+      const transactions = await getTransactions();
+      const holdings = await getHoldingsReference();
+      const divs = await getDividends();
       const prices = await fetchPrices();
-      const positions = calculatePositions(transactions, prices);
+      const positions = await calculatePositions(transactions, prices);
       const calculated = calculatePortfolioSummary(positions);
       
       setPortfolio(calculated);
@@ -116,6 +147,7 @@ export default function PerformancePage() {
       }
       
       await fetchFTSE();
+      await generateMonthlyData();
       
     } catch (error) {
       console.error('Error loading performance data:', error);
@@ -129,7 +161,7 @@ export default function PerformancePage() {
     loadData();
   }, [loadData]);
 
-  const handleAddDividend = () => {
+  const handleAddDividend = async () => {
     if (!newDividend.holdingId || newDividend.amount <= 0) {
       alert('Please select a holding and enter a valid amount');
       return;
@@ -145,28 +177,28 @@ export default function PerformancePage() {
     };
     
     const updatedDividends = [...dividends, dividend];
+    await saveDividends(updatedDividends);
     setDividends(updatedDividends);
-    saveDividends(updatedDividends);
     setShowAddDividend(false);
     setNewDividend({ holdingId: 0, date: new Date().toISOString().split('T')[0], amount: 0, notes: '' });
     loadData();
     alert('Dividend added successfully!');
   };
 
-  const handleDeleteDividend = (id: number) => {
+  const handleDeleteDividend = async (id: number) => {
     if (confirm('Delete this dividend record?')) {
       const updatedDividends = dividends.filter(d => d.id !== id);
+      await saveDividends(updatedDividends);
       setDividends(updatedDividends);
-      saveDividends(updatedDividends);
       loadData();
     }
   };
 
-  const getCompanyName = (holdingId: number): string => {
-  const holdings = getHoldingsReference();
-  const holding = holdings.find((h: { id: number; name: string }) => h.id === holdingId);
-  return holding?.name || `Holding ${holdingId}`;
-};
+  const getCompanyName = async (holdingId: number): Promise<string> => {
+    const holdings = await getHoldingsReference();
+    const holding = holdings.find((h: any) => h.id === holdingId);
+    return holding?.name || `Holding ${holdingId}`;
+  };
 
   const totalDividends = dividends.reduce((sum, d) => sum + d.amount, 0);
   const totalReturnWithDividends = (portfolio?.totalPnl || 0) + totalDividends;
@@ -489,7 +521,9 @@ export default function PerformancePage() {
                 {[...dividends].reverse().map((div) => (
                   <tr key={div.id} className="hover:bg-gray-800/50">
                     <td className="px-6 py-3 text-gray-300">{div.date}</td>
-                    <td className="px-6 py-3 text-white">{getCompanyName(div.holdingId)}</td>
+                    <td className="px-6 py-3 text-white">
+                      {portfolio?.holdings.find(h => h.holdingId === div.holdingId)?.name || `Holding ${div.holdingId}`}
+                    </td>
                     <td className="px-6 py-3 text-right text-emerald-400">{formatCurrency(div.amount)}</td>
                     <td className="px-6 py-3 text-gray-400">{div.notes || '-'}</td>
                     <td className="px-6 py-3 text-center">

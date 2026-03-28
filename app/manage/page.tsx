@@ -4,34 +4,19 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import PasswordProtect from '@/components/PasswordProtect';
 import { Transaction, Position } from '@/types';
-import { getTransactions, getHoldingsReference, calculatePositions, fetchPrices, saveTransactions } from '@/lib/portfolio';
+import { 
+  getTransactions, 
+  getHoldingsReference, 
+  calculatePositions, 
+  fetchPrices, 
+  calculatePortfolioSummary,
+  saveTransactions,
+  saveHolding
+} from '@/lib/portfolio';
 
 // Helper for formatting
 const formatCurrency = (value: number): string => {
   return `£${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
-// Storage key for holdings reference
-const HOLDINGS_REF_KEY = 'investment-club-holdings-ref';
-
-// Get holdings reference from localStorage (with fallback to JSON file)
-const getHoldingsRefFromStorage = () => {
-  if (typeof window === 'undefined') {
-    return getHoldingsReference();
-  }
-  const stored = localStorage.getItem(HOLDINGS_REF_KEY);
-  if (stored) {
-    return JSON.parse(stored);
-  }
-  return getHoldingsReference();
-};
-
-// Save holdings reference to localStorage
-const saveHoldingsRefToStorage = (holdings: any[]) => {
-    console.log('Saving holdings to localStorage:', holdings);  // ADD THIS DEBUG
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(HOLDINGS_REF_KEY, JSON.stringify(holdings));
-  }
 };
 
 function ManagePageContent() {
@@ -41,7 +26,8 @@ function ManagePageContent() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showSellForm, setShowSellForm] = useState<number | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [nextId, setNextId] = useState(17);
+  const [nextId, setNextId] = useState(22);
+  const [loading, setLoading] = useState(true);
   
   const [newTransaction, setNewTransaction] = useState({
     name: '',
@@ -68,15 +54,22 @@ function ManagePageContent() {
   });
 
   const loadData = async () => {
-    const tx = getTransactions();
-    const holdings = getHoldingsRefFromStorage();
-    setTransactions(tx);
-    setHoldingsRef(holdings);
-    setNextId(Math.max(...tx.map(t => t.id), 0) + 1);
-    
-    const prices = await fetchPrices();
-    const calculatedPositions = calculatePositions(tx, prices);
-    setPositions(calculatedPositions);
+    setLoading(true);
+    try {
+      const tx = await getTransactions();
+      const holdings = await getHoldingsReference();
+      setTransactions(tx);
+      setHoldingsRef(holdings);
+      setNextId(Math.max(...tx.map(t => t.id), 0) + 1);
+      
+      const prices = await fetchPrices();
+      const calculatedPositions = await calculatePositions(tx, prices);
+      setPositions(calculatedPositions);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -90,92 +83,123 @@ function ManagePageContent() {
 
   const manualRefresh = async () => {
     const prices = await fetchPrices();
-    const calculatedPositions = calculatePositions(transactions, prices);
+    const calculatedPositions = await calculatePositions(transactions, prices);
     setPositions(calculatedPositions);
     alert(`Positions refreshed! ${calculatedPositions.length} active positions found.`);
   };
 
   const handleAddTransaction = async () => {
-  if (newTransaction.type === 'sell') {
-    // ... sell code ...
-    return;
-  }
-  
-  // For buys
-  if (!newTransaction.name || !newTransaction.ticker || newTransaction.shares <= 0 || newTransaction.pricePerShare <= 0) {
-    alert('Please fill all fields correctly');
-    return;
-  }
+    if (newTransaction.type === 'sell') {
+      if (!newTransaction.name || newTransaction.shares <= 0 || newTransaction.pricePerShare <= 0) {
+        alert('Please select a stock and fill all fields correctly');
+        return;
+      }
+      
+      const existingPosition = positions.find(p => p.name === newTransaction.name);
+      if (!existingPosition) {
+        alert('Selected stock not found in portfolio');
+        return;
+      }
+      
+      if (newTransaction.shares > existingPosition.shares) {
+        alert(`Cannot sell more than you own. You have ${existingPosition.shares} shares.`);
+        return;
+      }
+      
+      const totalCost = newTransaction.shares * newTransaction.pricePerShare;
+      
+      const transaction: Transaction = {
+        id: nextId,
+        holdingId: existingPosition.holdingId,
+        type: 'sell',
+        date: newTransaction.date,
+        shares: newTransaction.shares,
+        pricePerShare: newTransaction.pricePerShare,
+        totalCost,
+        commission: 5,
+      };
+      
+      const updatedTransactions = [...transactions, transaction];
+      await saveTransactions(updatedTransactions);
+      setTransactions(updatedTransactions);
+      setNextId(nextId + 1);
+      setShowAddForm(false);
+      
+      const prices = await fetchPrices();
+      const calculatedPositions = await calculatePositions(updatedTransactions, prices);
+      setPositions(calculatedPositions);
+      
+      alert(`Sale recorded! Sold ${newTransaction.shares} shares of ${newTransaction.name}`);
+      
+      setNewTransaction({
+        name: '',
+        ticker: '',
+        type: 'buy',
+        shares: 0,
+        pricePerShare: 0,
+        date: new Date().toISOString().split('T')[0],
+        sector: 'Other',
+        holdingId: 0,
+      });
+      return;
+    }
+    
+    // For buys
+    if (!newTransaction.name || !newTransaction.ticker || newTransaction.shares <= 0 || newTransaction.pricePerShare <= 0) {
+      alert('Please fill all fields correctly');
+      return;
+    }
 
-  const holdingId = nextId;
-  const tradeValue = newTransaction.shares * newTransaction.pricePerShare;
-  
-  // Calculate fees
-  const fixedFee = 4.00;
-  const percentageFee = 0.5 / 100; // 0.5%
-  const percentageAmount = tradeValue * percentageFee;
-  const totalFees = fixedFee + percentageAmount;
-  const totalCost = tradeValue + totalFees;
-  
-  const transaction: Transaction = {
-    id: nextId,
-    holdingId,
-    type: newTransaction.type,
-    date: newTransaction.date,
-    shares: newTransaction.shares,
-    pricePerShare: newTransaction.pricePerShare,
-    totalCost,
-    commission: totalFees,
-    feeBreakdown: {
-      fixedFee,
-      percentageFee: 0.5,
-      percentageAmount,
-      totalFees,
-    },
+    const holdingId = nextId;
+    const totalCost = newTransaction.shares * newTransaction.pricePerShare;
+    
+    const transaction: Transaction = {
+      id: nextId,
+      holdingId,
+      type: newTransaction.type,
+      date: newTransaction.date,
+      shares: newTransaction.shares,
+      pricePerShare: newTransaction.pricePerShare,
+      totalCost,
+      commission: 5,
+    };
+    
+    const newHolding = {
+      id: holdingId,
+      name: newTransaction.name,
+      ticker: newTransaction.ticker,
+      sector: newTransaction.sector,
+    };
+    
+    const updatedTransactions = [...transactions, transaction];
+    const updatedHoldings = [...holdingsRef, newHolding];
+    
+    // Save to Supabase
+    await saveTransactions(updatedTransactions);
+    await saveHolding(newHolding);
+    
+    setTransactions(updatedTransactions);
+    setHoldingsRef(updatedHoldings);
+    setNextId(nextId + 1);
+    setShowAddForm(false);
+    
+    const prices = await fetchPrices();
+    const calculatedPositions = await calculatePositions(updatedTransactions, prices);
+    setPositions(calculatedPositions);
+    
+    alert(`Added ${newTransaction.type.toUpperCase()} transaction successfully!`);
+    
+    setNewTransaction({
+      name: '',
+      ticker: '',
+      type: 'buy',
+      shares: 0,
+      pricePerShare: 0,
+      date: new Date().toISOString().split('T')[0],
+      sector: 'Other',
+      holdingId: 0,
+    });
   };
-  
-  const newHolding = {
-    id: holdingId,
-    name: newTransaction.name,
-    ticker: newTransaction.ticker,
-    sector: newTransaction.sector,
-  };
-  
-  const updatedTransactions = [...transactions, transaction];
-  const updatedHoldings = [...holdingsRef, newHolding];
-  
-  // Save to localStorage
-  saveTransactions(updatedTransactions);
-  saveHoldingsRefToStorage(updatedHoldings);
-  
-  setTransactions(updatedTransactions);
-  setHoldingsRef(updatedHoldings);
-  setNextId(nextId + 1);
-  setShowAddForm(false);
-  
-  // Refresh positions
-  const prices = await fetchPrices();
-  const calculatedPositions = calculatePositions(updatedTransactions, prices);
-  setPositions(calculatedPositions);
-  
-  alert(`Added ${newTransaction.type.toUpperCase()} transaction!\n\n` +
-    `Trade Value: £${tradeValue.toFixed(2)}\n` +
-    `Fixed Fee: £4.00\n` +
-    `0.5% Commission: £${percentageAmount.toFixed(2)}\n` +
-    `Total Fees: £${totalFees.toFixed(2)}\n` +
-    `Total Cost: £${totalCost.toFixed(2)}`);
-  
-  setNewTransaction({
-    name: '',
-    ticker: '',
-    type: 'buy',
-    shares: 0,
-    pricePerShare: 0,
-    date: new Date().toISOString().split('T')[0],
-    sector: 'Other',
-    holdingId: 0,
-  });
-};
 
   const handleSell = async () => {
     if (!sellTransaction.holdingId || sellTransaction.shares <= 0 || sellTransaction.pricePerShare <= 0) {
@@ -221,7 +245,7 @@ function ManagePageContent() {
     
     const updatedTransactions = [...transactions, newTransaction];
     
-    saveTransactions(updatedTransactions);
+    await saveTransactions(updatedTransactions);
     
     setTransactions(updatedTransactions);
     setNextId(nextId + 1);
@@ -235,7 +259,7 @@ function ManagePageContent() {
     });
     
     const prices = await fetchPrices();
-    const calculatedPositions = calculatePositions(updatedTransactions, prices);
+    const calculatedPositions = await calculatePositions(updatedTransactions, prices);
     setPositions(calculatedPositions);
     
     const updatedPosition = calculatedPositions.find(p => p.holdingId === position.holdingId);
@@ -257,11 +281,11 @@ function ManagePageContent() {
     
     if (confirm(confirmMessage)) {
       const updatedTransactions = transactions.filter(t => t.id !== transactionId);
-      saveTransactions(updatedTransactions);
+      await saveTransactions(updatedTransactions);
       setTransactions(updatedTransactions);
       
       const prices = await fetchPrices();
-      const calculatedPositions = calculatePositions(updatedTransactions, prices);
+      const calculatedPositions = await calculatePositions(updatedTransactions, prices);
       setPositions(calculatedPositions);
       
       alert('Transaction deleted. Positions recalculated.');
@@ -290,12 +314,12 @@ function ManagePageContent() {
       t.id === editingTransaction.id ? updatedTransaction : t
     );
     
-    saveTransactions(updatedTransactions);
+    await saveTransactions(updatedTransactions);
     setTransactions(updatedTransactions);
     setEditingTransaction(null);
     
     const prices = await fetchPrices();
-    const calculatedPositions = calculatePositions(updatedTransactions, prices);
+    const calculatedPositions = await calculatePositions(updatedTransactions, prices);
     setPositions(calculatedPositions);
     
     alert('Transaction updated successfully!');
@@ -309,6 +333,22 @@ function ManagePageContent() {
       date: transaction.date,
     });
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <Navigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
+              <p className="mt-4 text-gray-400">Loading portfolio data...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
@@ -590,7 +630,7 @@ function ManagePageContent() {
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400">Avg Cost</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400">Current Value</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-400">Action</th>
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {positions.map((pos) => (
@@ -639,6 +679,7 @@ function ManagePageContent() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Company</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400">Shares</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400">Price</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400">Fees</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400">Total</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-400">Actions</th>
                   </tr>
@@ -657,6 +698,9 @@ function ManagePageContent() {
                       <td className="px-6 py-3 text-white">{getCompanyName(tx.holdingId)}</td>
                       <td className="px-6 py-3 text-right text-gray-300">{tx.shares.toLocaleString()}</td>
                       <td className="px-6 py-3 text-right text-gray-300">£{tx.pricePerShare.toFixed(4)}</td>
+                      <td className="px-6 py-3 text-right text-gray-300">
+                        {tx.commission ? `£${tx.commission.toFixed(2)}` : '—'}
+                      </td>
                       <td className="px-6 py-3 text-right text-gray-300">£{tx.totalCost.toFixed(2)}</td>
                       <td className="px-6 py-3 text-center">
                         <div className="flex gap-2 justify-center">

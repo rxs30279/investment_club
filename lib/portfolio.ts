@@ -1,53 +1,115 @@
-import { Transaction, Position, PortfolioSummary, PriceResponse, Dividend, PerformanceData, StockFundamentals } from '@/types';
-import holdingsReference from '@/app/data/holdings-reference.json';
-import initialTransactions from '@/app/data/portfolio-data.json';
-import dividendsData from '@/app/data/dividends.json';
-
-// Storage keys
-const STORAGE_KEY = 'investment-club-transactions';
-const DIVIDENDS_STORAGE_KEY = 'investment-club-dividends';
+import { Transaction, Position, PortfolioSummary, PriceResponse, Dividend, StockFundamentals } from '@/types';
+import { supabase } from './supabase';
 
 // ==================== TRANSACTIONS ====================
-export function getTransactions(): Transaction[] {
-  if (typeof window === 'undefined') {
-    return initialTransactions.transactions as Transaction[];
+export async function getTransactions(): Promise<Transaction[]> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .order('date', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching transactions:', error);
+    return [];
   }
   
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    return JSON.parse(stored) as Transaction[];
-  }
-  return initialTransactions.transactions as Transaction[];
+  // Map database column names to TypeScript interface
+  return (data || []).map(tx => ({
+    id: tx.id,
+    holdingId: tx.holding_id,
+    type: tx.type as 'buy' | 'sell',
+    date: tx.date,
+    shares: tx.shares,
+    pricePerShare: tx.price_per_share,
+    totalCost: tx.total_cost,
+    commission: tx.commission,
+  }));
 }
 
-export function saveTransactions(transactions: Transaction[]): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+export async function saveTransactions(transactions: Transaction[]): Promise<void> {
+  for (const tx of transactions) {
+    const { error } = await supabase
+      .from('transactions')
+      .upsert({
+        id: tx.id,
+        holding_id: tx.holdingId,
+        type: tx.type,
+        date: tx.date,
+        shares: tx.shares,
+        price_per_share: tx.pricePerShare,
+        total_cost: tx.totalCost,
+        commission: tx.commission,
+      }, { onConflict: 'id' });
+    
+    if (error) console.error('Error saving transaction:', error);
   }
 }
 
 // ==================== DIVIDENDS ====================
-export function getDividends(): Dividend[] {
-  if (typeof window === 'undefined') {
-    return dividendsData.dividends;
+export async function getDividends(): Promise<Dividend[]> {
+  const { data, error } = await supabase
+    .from('dividends')
+    .select('*')
+    .order('date', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching dividends:', error);
+    return [];
   }
   
-  const stored = localStorage.getItem(DIVIDENDS_STORAGE_KEY);
-  if (stored) {
-    return JSON.parse(stored);
-  }
-  return dividendsData.dividends;
+  return (data || []).map(d => ({
+    id: d.id,
+    holdingId: d.holding_id,
+    date: d.date,
+    amount: d.amount,
+    currency: d.currency,
+    notes: d.notes,
+  }));
 }
 
-export function saveDividends(dividends: Dividend[]): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(DIVIDENDS_STORAGE_KEY, JSON.stringify(dividends));
+export async function saveDividends(dividends: Dividend[]): Promise<void> {
+  for (const div of dividends) {
+    const { error } = await supabase
+      .from('dividends')
+      .upsert({
+        id: div.id,
+        holding_id: div.holdingId,
+        date: div.date,
+        amount: div.amount,
+        currency: div.currency,
+        notes: div.notes,
+      }, { onConflict: 'id' });
+    
+    if (error) console.error('Error saving dividend:', error);
   }
 }
 
 // ==================== HOLDINGS REFERENCE ====================
-export function getHoldingsReference() {
-  return holdingsReference.holdings;
+export async function getHoldingsReference(): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('holdings')
+    .select('*')
+    .order('id', { ascending: true });
+  
+  if (error) {
+    console.error('Error fetching holdings:', error);
+    return [];
+  }
+  
+  return data || [];
+}
+
+export async function saveHolding(holding: any): Promise<void> {
+  const { error } = await supabase
+    .from('holdings')
+    .upsert({
+      id: holding.id,
+      name: holding.name,
+      ticker: holding.ticker,
+      sector: holding.sector,
+    }, { onConflict: 'id' });
+  
+  if (error) console.error('Error saving holding:', error);
 }
 
 // ==================== PRICES ====================
@@ -66,9 +128,10 @@ export async function fetchPrices(): Promise<PriceResponse> {
 }
 
 // ==================== POSITIONS ====================
-export function calculatePositions(transactions: Transaction[], currentPrices: PriceResponse): Position[] {
+export async function calculatePositions(transactions: Transaction[], currentPrices: PriceResponse): Promise<Position[]> {
+  const holdings = await getHoldingsReference();
   const holdingInfo = new Map();
-  holdingsReference.holdings.forEach((h: any) => {
+  holdings.forEach((h: any) => {
     holdingInfo.set(h.id, {
       name: h.name,
       ticker: h.ticker,
@@ -227,76 +290,67 @@ export async function fetchFTSE100Data(): Promise<{ date: string; value: number 
 
 // ==================== PORTFOLIO VALUE ON DATE ====================
 export async function calculatePortfolioValueOnDate(date: string): Promise<number> {
-  try {
-    const transactions = getTransactions();
-    const holdings = getHoldingsReference();
-    const currentPrices = await fetchPrices();
-    const holdingInfo = new Map();
-    holdings.forEach((h: any) => {
-      holdingInfo.set(h.id, { ticker: h.ticker });
-    });
+  const transactions = await getTransactions();
+  const holdings = await getHoldingsReference();
+  const currentPrices = await fetchPrices();
+  const holdingInfo = new Map();
+  holdings.forEach((h: any) => {
+    holdingInfo.set(h.id, { ticker: h.ticker });
+  });
+  
+  const relevantTransactions = transactions.filter(t => t.date <= date);
+  const positionMap = new Map<number, { shares: number; totalCost: number; ticker: string }>();
+  
+  const sortedTransactions = [...relevantTransactions].sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  
+  for (const tx of sortedTransactions) {
+    const info = holdingInfo.get(tx.holdingId);
+    if (!info) continue;
     
-    const relevantTransactions = transactions.filter(t => t.date <= date);
-    const positionMap = new Map<number, { shares: number; totalCost: number; ticker: string }>();
-    
-    const sortedTransactions = [...relevantTransactions].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    
-    for (const tx of sortedTransactions) {
-      const info = holdingInfo.get(tx.holdingId);
-      if (!info) continue;
-      
-      let pos = positionMap.get(tx.holdingId);
-      if (!pos) {
-        pos = { shares: 0, totalCost: 0, ticker: info.ticker };
-        positionMap.set(tx.holdingId, pos);
-      }
-      
-      if (tx.type === 'buy') {
-        pos.shares += tx.shares;
-        pos.totalCost += tx.totalCost;
-      } else if (tx.type === 'sell') {
-        const avgCost = pos.shares > 0 ? pos.totalCost / pos.shares : 0;
-        pos.shares -= tx.shares;
-        pos.totalCost -= avgCost * tx.shares;
-      }
+    let pos = positionMap.get(tx.holdingId);
+    if (!pos) {
+      pos = { shares: 0, totalCost: 0, ticker: info.ticker };
+      positionMap.set(tx.holdingId, pos);
     }
     
-    let totalValue = 0;
-    for (const [_, pos] of positionMap) {
-      if (pos.shares <= 0) continue;
-      const price = currentPrices[pos.ticker] || 0;
-      totalValue += price * pos.shares;
+    if (tx.type === 'buy') {
+      pos.shares += tx.shares;
+      pos.totalCost += tx.totalCost;
+    } else if (tx.type === 'sell') {
+      const avgCost = pos.shares > 0 ? pos.totalCost / pos.shares : 0;
+      pos.shares -= tx.shares;
+      pos.totalCost -= avgCost * tx.shares;
     }
-    
-    return totalValue;
-  } catch (error) {
-    console.error('Error calculating portfolio value:', error);
-    return 0;
   }
+  
+  let totalValue = 0;
+  for (const [_, pos] of positionMap) {
+    if (pos.shares <= 0) continue;
+    const price = currentPrices[pos.ticker] || 0;
+    totalValue += price * pos.shares;
+  }
+  
+  return totalValue;
 }
 
-// ==================== MONTHLY RETURNS (Simple Version) ====================
+// ==================== MONTHLY RETURNS ====================
 export async function generateRealMonthlyReturns(transactions: Transaction[]): Promise<{ month: string; portfolioReturn: number; ftseReturn: number }[]> {
-  // Get FTSE data for comparison
   const ftseData = await fetchFTSE100Data();
   
-  // Sample monthly returns based on your actual data
   const monthlyReturns = [
     { month: 'JAN', portfolioReturn: 17.62, ftseReturn: 2.74 },
     { month: 'FEB', portfolioReturn: 4.10, ftseReturn: 5.50 },
     { month: 'MAR', portfolioReturn: -14.08, ftseReturn: -7.57 },
   ];
   
-  // Only return months up to current month
   const currentMonth = new Date().getMonth();
   return monthlyReturns.slice(0, currentMonth + 1);
 }
 
-// ==================== ALPHA VANTAGE (Optional) ====================
+// ==================== ALPHA VANTAGE ====================
 export async function fetchAlphaVantageFundamentals(ticker: string): Promise<StockFundamentals> {
-  // Return empty fundamentals for now
   return {
     price: 0,
     high52Week: 0,

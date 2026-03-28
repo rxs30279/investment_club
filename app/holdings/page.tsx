@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Navigation from '@/components/Navigation';
 import { PortfolioSummary, Position } from '@/types';
-import { getTransactions, calculatePositions, fetchPrices, calculatePortfolioSummary } from '@/lib/portfolio';
+import { 
+  getTransactions, 
+  calculatePositions, 
+  fetchPrices, 
+  calculatePortfolioSummary,
+  getHoldingsReference
+} from '@/lib/portfolio';
 import RefreshButton from '@/components/RefreshButton';
 
 const formatCurrency = (value: number): string => {
@@ -225,43 +231,40 @@ const sectorColors: Record<string, string> = {
   Other: '#6b7280',
 };
 
-// Hardcoded 52-week ranges for your stocks (from Yahoo Finance chart data)
-const stockRanges: Record<string, { high: number; low: number }> = {
-  'BA.L': { high: 2331, low: 1145 },
-  'BREE.L': { high: 487, low: 301.4 },
-  'CLBS.L': { high: 316, low: 91.5 },
-  'CWR.L': { high: 411.6, low: 47.94 },
-  'CHG.L': { high: 599, low: 297.5 },
-  'GGP.L': { high: 735.8, low: 102 },
-  'IAG.L': { high: 457.3, low: 157.8 },
-  'LLOY.L': { high: 112.6, low: 49.7 },
-  'MACF.L': { high: 145, low: 62.6 },
-  'MRO.L': { high: 681.8, low: 385.9 },
-  'RR.L': { high: 1363, low: 395.5 },
-  'REL.L': { high: 4135, low: 2013 },
-  'WIL.L': { high: 415, low: 230 },
-  'WISE.L': { high: 1160, low: 630 },
-  'CHRT.L': { high: 1748, low: 670 },
-  'MAST.L': { high: 187, low: 1.5 },
-  'AET.L': { high: 79.4, low: 35 },
-  'FTC.L': { high: 120, low: 45 },
-  'MKS.L': { high: 420, low: 280 },
-};
-
 export default function HoldingsPage() {
   const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string>('All');
+  const [stockRanges, setStockRanges] = useState<Record<string, { high: number; low: number }>>({});
 
   const loadData = useCallback(async () => {
     setError(null);
+    setLoading(true);
     try {
-      const transactions = getTransactions();
+      const transactions = await getTransactions();
       const prices = await fetchPrices();
-      const positions = calculatePositions(transactions, prices);
+      const positions = await calculatePositions(transactions, prices);
       const calculated = calculatePortfolioSummary(positions);
       setPortfolio(calculated);
+      
+      // Fetch 52-week ranges for each stock
+      const ranges: Record<string, { high: number; low: number }> = {};
+      for (const holding of calculated.holdings) {
+        try {
+          const response = await fetch('/api/fundamentals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker: holding.ticker }),
+          });
+          const data = await response.json();
+          ranges[holding.ticker] = { high: data.high52Week || 0, low: data.low52Week || 0 };
+        } catch (err) {
+          console.error(`Error fetching range for ${holding.ticker}:`, err);
+          ranges[holding.ticker] = { high: holding.currentPrice * 1.3, low: holding.currentPrice * 0.7 };
+        }
+      }
+      setStockRanges(ranges);
     } catch (error) {
       console.error('Error loading holdings:', error);
       setError('Failed to load holdings data. Please try again.');
@@ -410,7 +413,7 @@ export default function HoldingsPage() {
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">P&L</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Return</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Shares</th>
-                   </tr>
+                  表示
               </thead>
               <tbody className="divide-y divide-gray-800">
                 {filteredHoldings?.map((holding) => {
@@ -427,30 +430,30 @@ export default function HoldingsPage() {
                         >
                           {holding.ticker}
                         </a>
-                       </td>
+                        </td>
                       <td className="px-4 py-3 text-right text-gray-300 font-mono">
                         £{holding.currentPrice.toFixed(2)}
-                       </td>
+                        </td>
                       <td className="px-4 py-3">
                         <RangeBar 
                           current={holding.currentPrice} 
                           low={range.low} 
                           high={range.high} 
                         />
-                       </td>
+                        </td>
                       <td className="px-4 py-3 text-right text-gray-300">
                         £{holding.currentValue.toFixed(2)}
-                       </td>
+                        </td>
                       <td className={`px-4 py-3 text-right font-medium ${holding.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {holding.pnl >= 0 ? '+' : ''}{formatCurrency(holding.pnl)}
-                       </td>
+                        </td>
                       <td className={`px-4 py-3 text-right font-medium ${holding.pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {holding.pnlPercent >= 0 ? '+' : ''}{holding.pnlPercent.toFixed(2)}%
-                       </td>
+                        </td>
                       <td className="px-4 py-3 text-right text-gray-300">
                         {holding.shares.toLocaleString()}
-                       </td>
-                    </tr>
+                        </td>
+                     </tr>
                   );
                 })}
               </tbody>
