@@ -31,7 +31,6 @@ function TreasurerReportsContent() {
   const [editingReport, setEditingReport] = useState<TreasurerReport | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const editFileInputRef = useRef<HTMLInputElement>(null);
   
   const [newReport, setNewReport] = useState({
     title: '',
@@ -115,12 +114,11 @@ function TreasurerReportsContent() {
       
       const reportId = inserted[0].id;
 
-      // Upload file
+      // Upload file (file is guaranteed not null here)
       const fileUrl = await uploadFile(newReport.file, reportId);
       const fileName = newReport.file.name;
       
       if (fileUrl) {
-        // Update the record with file info
         await supabase
           .from('treasurer_reports')
           .update({ file_url: fileUrl, file_name: fileName })
@@ -200,8 +198,12 @@ function TreasurerReportsContent() {
           await supabase.storage.from('treasurer-reports').remove([oldFileName]);
         }
         
-        fileUrl = await uploadFile(editContent.file, editingReport.id);
-        fileName = editContent.file.name;
+        // Upload new file (editContent.file is not null here due to the if check)
+        const uploadedUrl = await uploadFile(editContent.file, editingReport.id);
+        if (uploadedUrl) {
+          fileUrl = uploadedUrl;
+          fileName = editContent.file.name;
+        }
       }
 
       const { error } = await supabase
