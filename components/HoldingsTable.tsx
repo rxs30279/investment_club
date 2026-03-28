@@ -33,7 +33,7 @@ export default function HoldingsTable({ holdings }: HoldingsTableProps) {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {holdings.map((holding) => (
-              <tr key={holding.id} className="hover:bg-slate-50 transition-colors">
+              <tr key={holding.holdingId} className="hover:bg-slate-50 transition-colors">
                 <td className="px-5 py-3 font-medium text-slate-800">{holding.name}</td>
                 <td className="px-5 py-3 text-slate-500 font-mono text-xs">{holding.ticker}</td>
                 <td className="px-5 py-3 text-right text-slate-700">{holding.shares.toLocaleString()}</td>
