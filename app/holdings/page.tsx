@@ -402,64 +402,64 @@ export default function HoldingsPage() {
 
         {/* Holdings Table */}
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-900/80 border-b border-gray-800">
-                <tr className="text-left">
-                  <th className="px-4 py-3 text-xs font-medium text-gray-400">Company</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Price</th>
-                  <th className="px-4 py-3 text-left min-w-[180px] text-xs font-medium text-gray-400">52-Week Range</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Value</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">P&L</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Return</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Shares</th>
-                  表示
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {filteredHoldings?.map((holding) => {
-                  const range = getRange(holding.ticker);
-                  return (
-                    <tr key={holding.holdingId} className="hover:bg-gray-800/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="text-white font-medium">{holding.name}</p>
-                        <a 
-                          href={`https://uk.finance.yahoo.com/quote/${holding.ticker}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="text-emerald-400 text-xs hover:underline"
-                        >
-                          {holding.ticker}
-                        </a>
-                        </td>
-                      <td className="px-4 py-3 text-right text-gray-300 font-mono">
-                        £{holding.currentPrice.toFixed(2)}
-                        </td>
-                      <td className="px-4 py-3">
-                        <RangeBar 
-                          current={holding.currentPrice} 
-                          low={range.low} 
-                          high={range.high} 
-                        />
-                        </td>
-                      <td className="px-4 py-3 text-right text-gray-300">
-                        £{holding.currentValue.toFixed(2)}
-                        </td>
-                      <td className={`px-4 py-3 text-right font-medium ${holding.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {holding.pnl >= 0 ? '+' : ''}{formatCurrency(holding.pnl)}
-                        </td>
-                      <td className={`px-4 py-3 text-right font-medium ${holding.pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {holding.pnlPercent >= 0 ? '+' : ''}{holding.pnlPercent.toFixed(2)}%
-                        </td>
-                      <td className="px-4 py-3 text-right text-gray-300">
-                        {holding.shares.toLocaleString()}
-                        </td>
-                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm">
+      <thead className="bg-gray-900/80 border-b border-gray-800">
+        <tr className="text-left">
+          <th className="px-4 py-3 text-xs font-medium text-gray-400">Company</th>
+          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Price</th>
+          <th className="px-4 py-3 text-left min-w-[180px] text-xs font-medium text-gray-400">52-Week Range</th>
+          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Value</th>
+          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">P&L</th>
+          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Return</th>
+          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Shares</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-800">
+        {filteredHoldings?.map((holding) => {
+          const range = getRange(holding.ticker);
+          return (
+            <tr key={holding.holdingId} className="hover:bg-gray-800/50 transition-colors">
+              <td className="px-4 py-3">
+                <p className="text-white font-medium">{holding.name}</p>
+                <a 
+                  href={`https://uk.finance.yahoo.com/quote/${holding.ticker}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-emerald-400 text-xs hover:underline"
+                >
+                  {holding.ticker}
+                </a>
+              </td>
+              <td className="px-4 py-3 text-right text-gray-300 font-mono">
+                £{holding.currentPrice.toFixed(2)}
+              </td>
+              <td className="px-4 py-3">
+                <RangeBar 
+                  current={holding.currentPrice} 
+                  low={range.low} 
+                  high={range.high} 
+                />
+              </td>
+              <td className="px-4 py-3 text-right text-gray-300">
+                £{holding.currentValue.toFixed(2)}
+              </td>
+              <td className={`px-4 py-3 text-right font-medium ${holding.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {holding.pnl >= 0 ? '+' : ''}{formatCurrency(holding.pnl)}
+              </td>
+              <td className={`px-4 py-3 text-right font-medium ${holding.pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {holding.pnlPercent >= 0 ? '+' : ''}{holding.pnlPercent.toFixed(2)}%
+              </td>
+              <td className="px-4 py-3 text-right text-gray-300">
+                {holding.shares.toLocaleString()}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+</div>
 
         <div className="mt-6 text-center text-xs text-gray-500">
           📊 <span className="font-semibold">52-week range bars</span> show where current price sits within the year's high and low. 
