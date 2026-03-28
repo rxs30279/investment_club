@@ -24,3 +24,38 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Ensure charts take full width */
+canvas {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Performance chart container */
+.performance-chart-container {
+  width: 100%;
+  min-height: 400px;
+}
+
+/* Improve chart rendering */
+canvas {
+  image-rendering: crisp-edges;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Fix for Chart.js canvas scaling */
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-height: 500px;
+}
+
+/* Stabilize chart rendering */
+canvas {
+  display: block;
+  max-width: 100%;
+}

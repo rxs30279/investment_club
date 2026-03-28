@@ -1,0 +1,185 @@
+{
+  "transactions": [
+    {
+      "id": 1,
+      "holdingId": 1,
+      "type": "buy",
+      "date": "2023-03-08",
+      "shares": 165,
+      "pricePerShare": 9.2375,
+      "totalCost": 1524.19,
+      "commission": 5
+    },
+    {
+      "id": 2,
+      "holdingId": 2,
+      "type": "buy",
+      "date": "2022-07-20",
+      "shares": 439,
+      "pricePerShare": 3.4156,
+      "totalCost": 1499.43,
+      "commission": 5
+    },
+    {
+      "id": 3,
+      "holdingId": 3,
+      "type": "buy",
+      "date": "2025-02-13",
+      "shares": 445,
+      "pricePerShare": 2.243,
+      "totalCost": 998.12,
+      "commission": 5
+    },
+    {
+      "id": 4,
+      "holdingId": 4,
+      "type": "buy",
+      "date": "2022-12-07",
+      "shares": 377,
+      "pricePerShare": 3.969,
+      "totalCost": 1496.31,
+      "commission": 5
+    },
+    {
+      "id": 5,
+      "holdingId": 5,
+      "type": "buy",
+      "date": "2024-06-10",
+      "shares": 383,
+      "pricePerShare": 3.9096,
+      "totalCost": 1497.38,
+      "commission": 5
+    },
+    {
+      "id": 6,
+      "holdingId": 6,
+      "type": "buy",
+      "date": "2026-01-26",
+      "shares": 87,
+      "pricePerShare": 11.6456,
+      "totalCost": 1013.17,
+      "commission": 5
+    },
+    {
+      "id": 7,
+      "holdingId": 7,
+      "type": "buy",
+      "date": "2025-02-13",
+      "shares": 589,
+      "pricePerShare": 1.6978,
+      "totalCost": 999.99,
+      "commission": 5
+    },
+    {
+      "id": 8,
+      "holdingId": 8,
+      "type": "buy",
+      "date": "2024-11-21",
+      "shares": 823,
+      "pricePerShare": 2.429,
+      "totalCost": 1999.03,
+      "commission": 5
+    },
+    {
+      "id": 9,
+      "holdingId": 9,
+      "type": "buy",
+      "date": "2025-08-21",
+      "shares": 1187,
+      "pricePerShare": 0.8418,
+      "totalCost": 999.21,
+      "commission": 5
+    },
+    {
+      "id": 10,
+      "holdingId": 10,
+      "type": "buy",
+      "date": "2025-07-21",
+      "shares": 994,
+      "pricePerShare": 1.006,
+      "totalCost": 999.97,
+      "commission": 5
+    },
+    {
+      "id": 11,
+      "holdingId": 11,
+      "type": "buy",
+      "date": "2025-07-21",
+      "shares": 184,
+      "pricePerShare": 5.4145,
+      "totalCost": 996.27,
+      "commission": 5
+    },
+    {
+      "id": 12,
+      "holdingId": 12,
+      "type": "buy",
+      "date": "2025-11-25",
+      "shares": 5000,
+      "pricePerShare": 0.103,
+      "totalCost": 515.02,
+      "commission": 5
+    },
+    {
+      "id": 13,
+      "holdingId": 13,
+      "type": "buy",
+      "date": "2026-01-26",
+      "shares": 35,
+      "pricePerShare": 29.6251,
+      "totalCost": 1036.88,
+      "commission": 5
+    },
+    {
+      "id": 14,
+      "holdingId": 14,
+      "type": "buy",
+      "date": "2023-09-06",
+      "shares": 223,
+      "pricePerShare": 2.2336,
+      "totalCost": 498.08,
+      "commission": 5
+    },
+    {
+      "id": 15,
+      "holdingId": 15,
+      "type": "buy",
+      "date": "2025-06-19",
+      "shares": 425,
+      "pricePerShare": 3.5269,
+      "totalCost": 1498.93,
+      "commission": 5
+    },
+    {
+      "id": 16,
+      "holdingId": 16,
+      "type": "buy",
+      "date": "2025-11-26",
+      "shares": 100,
+      "pricePerShare": 8.9039,
+      "totalCost": 890.39,
+      "commission": 5
+    },
+    {
+      "id": 17,
+      "holdingId": 17,
+      "type": "buy",
+      "date": "2025-11-26",
+      "shares": 100,
+      "pricePerShare": 8.9039,
+      "totalCost": 890.39,
+      "commission": 5
+    },
+      {
+      "id": 18,
+      "holdingId": 18,
+      "type": "buy",
+      "date": "2026-03-28",
+      "shares": 1380,
+      "pricePerShare": 0.7245,
+      "totalCost": 999.81,
+      "commission": 5
+    }
+    
+  ]
+}

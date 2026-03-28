@@ -1,0 +1,36 @@
+{
+  "dividends": [
+    {
+      "id": 1,
+      "holdingId": 1,
+      "date": "2024-03-15",
+      "amount": 45.20,
+      "currency": "GBP",
+      "notes": "BAE Systems Interim Dividend"
+    },
+    {
+      "id": 2,
+      "holdingId": 2,
+      "date": "2024-04-10",
+      "amount": 28.50,
+      "currency": "GBP",
+      "notes": "Breedon Group Dividend"
+    },
+    {
+      "id": 3,
+      "holdingId": 9,
+      "date": "2024-05-20",
+      "amount": 35.80,
+      "currency": "GBP",
+      "notes": "Lloyds Banking Group Dividend"
+    },
+    {
+      "id": 4,
+      "holdingId": 14,
+      "date": "2024-06-05",
+      "amount": 42.15,
+      "currency": "GBP",
+      "notes": "Rolls-Royce Dividend"
+    }
+  ]
+}

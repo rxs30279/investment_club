@@ -1,0 +1,112 @@
+{
+  "holdings": [
+    {
+      "id": 1,
+      "name": "BAE Systems plc",
+      "ticker": "BA.L",
+      "sector": "Aerospace"
+    },
+    {
+      "id": 2,
+      "name": "Breedon Group plc",
+      "ticker": "BREE.L",
+      "sector": "Materials"
+    },
+    {
+      "id": 3,
+      "name": "Celebrus Technologies plc",
+      "ticker": "CLBS.L",
+      "sector": "Technology"
+    },
+    {
+      "id": 4,
+      "name": "Ceres Power Holdings plc",
+      "ticker": "CWR.L",
+      "sector": "Energy"
+    },
+    {
+      "id": 5,
+      "name": "Chemring Group PLC",
+      "ticker": "CHG.L",
+      "sector": "Aerospace"
+    },
+    {
+      "id": 6,
+      "name": "Cohort plc",
+      "ticker": "CHRT.L",
+      "sector": "Industrials"
+    },
+    {
+      "id": 7,
+      "name": "Greatland Resources Limited",
+      "ticker": "GGP.L",
+      "sector": "Materials"
+    },
+    {
+      "id": 8,
+      "name": "International Consolidated Airlines Group S.A.",
+      "ticker": "IAG.L",
+      "sector": "Industrials"
+    },
+    {
+      "id": 9,
+      "name": "Lloyds Banking Group plc",
+      "ticker": "LLOY.L",
+      "sector": "Financials"
+    },
+    {
+      "id": 10,
+      "name": "Macfarlane Group PLC",
+      "ticker": "MACF.L",
+      "sector": "Industrials"
+    },
+    {
+      "id": 11,
+      "name": "Melrose Industries PLC",
+      "ticker": "MRO.L",
+      "sector": "Industrials"
+    },
+    {
+      "id": 12,
+      "name": "Quantum Data Energy PLC",
+      "ticker": "MAST.L",
+      "sector": "Energy"
+    },
+    {
+      "id": 13,
+      "name": "RELX PLC",
+      "ticker": "REL.L",
+      "sector": "Technology"
+    },
+    {
+      "id": 14,
+      "name": "Rolls-Royce Holdings plc",
+      "ticker": "RR.L",
+      "sector": "Aerospace"
+    },
+    {
+      "id": 15,
+      "name": "Wilmington plc",
+      "ticker": "WIL.L",
+      "sector": "Industrials"
+    },
+    {
+      "id": 16,
+      "name": "Wise plc",
+      "ticker": "WISE.L",
+      "sector": "Technology"
+    },
+    {
+      "id": 17,
+      "name": "Breedon Group plc",
+      "ticker": "BREE.L",
+      "sector": "Materials"
+    },
+    {
+      "id": 18,
+      "name": "Afentra plc",
+      "ticker": "AET.L",
+      "sector": "Energy"
+    }
+  ]
+}
