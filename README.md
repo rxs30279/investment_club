@@ -32,7 +32,7 @@ A full-stack web application for managing and tracking a small investment club p
 - Monthly breakdown table with % change and since-inception return
 - Toggle between relative performance and raw unit value views
 
-![Dashboard Overview](Unit Value Performance.png)
+![Dashboard Overview](Unit%20Value%20Performance.png)
 
 ### 📈 General Performance
 
