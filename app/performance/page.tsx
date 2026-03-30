@@ -1,242 +1,257 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
-import StockPerformanceChart from '@/components/StockPerformanceChart';
-import { PortfolioSummary, Dividend } from '@/types';
-import { 
-  getTransactions, 
-  getHoldingsReference, 
-  calculatePositions, 
-  fetchPrices, 
-  calculatePortfolioSummary,
-  getDividends,
-  saveDividends,
-  fetchFTSE100Data,
-  calculatePortfolioValueOnDate,
-  generateRealMonthlyReturns
-} from '@/lib/portfolio';
-import RefreshButton from '@/components/RefreshButton';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+import {
+  getUnitValues,
+  fetchBenchmarkData,
+  calcPerformanceSummary,
+  rebaseUnitValues,
+  type UnitValue,
+  type BenchmarkPoint,
+} from '@/lib/performance';
 
-const formatCurrency = (value: number): string => {
-  return `£${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const formatPercent = (value: number): string => {
-  return `${value >= 0 ? '+' : ''}${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
-};
+const formatDate = (dateStr: string) =>
+  new Date(dateStr).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
 
-export default function PerformancePage() {
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
-  const [dividends, setDividends] = useState<Dividend[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showAddDividend, setShowAddDividend] = useState(false);
-  const [ftseCurrentPrice, setFtseCurrentPrice] = useState<number | null>(null);
-  const [ftseYTDReturn, setFtseYTDReturn] = useState<number | null>(null);
-  const [portfolioValueJan1, setPortfolioValueJan1] = useState<number | null>(null);
-  const [ftseStartDate, setFtseStartDate] = useState<string | null>(null);
-  const [ftseLoading, setFtseLoading] = useState(true);
-  const [monthlyTableData, setMonthlyTableData] = useState<any[]>([]);
-  const [ytdReturn, setYtdReturn] = useState<number>(0);
-  const [monthlyView, setMonthlyView] = useState<'portfolio' | 'ftse'>('portfolio');
-  const [newDividend, setNewDividend] = useState({
-    holdingId: 0,
-    date: new Date().toISOString().split('T')[0],
-    amount: 0,
-    notes: '',
+const formatDateLong = (dateStr: string) =>
+  new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const fmt2 = (n: number) => n.toFixed(2);
+const fmt4 = (n: number) => n.toFixed(4);
+const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+
+// ── Chart data merger ─────────────────────────────────────────────────────────
+// Merges portfolio rebased series with FTSE 100 + 250 into one array for Recharts
+
+interface ChartPoint {
+  date: string;
+  label: string;
+  portfolio?: number;
+  ftse100?: number;
+  ftse250?: number;
+}
+
+function mergeChartData(
+  portfolio: BenchmarkPoint[],
+  ftse100: BenchmarkPoint[],
+  ftse250: BenchmarkPoint[]
+): ChartPoint[] {
+  const map = new Map<string, ChartPoint>();
+
+  portfolio.forEach(p => {
+    map.set(p.date, { date: p.date, label: formatDate(p.date), portfolio: p.value });
   });
 
-  // Monthly returns data (real data from your portfolio)
-  const monthlyReturns = [
-    { month: 'JAN', portfolioReturn: 17.62, ftseReturn: 2.74 },
-    { month: 'FEB', portfolioReturn: 4.10, ftseReturn: 5.50 },
-    { month: 'MAR', portfolioReturn: -14.08, ftseReturn: -7.57 },
-  ];
-
-  // Only show months up to current month
-  const currentMonth = new Date().getMonth();
-  const monthsToShow = monthlyReturns.slice(0, currentMonth + 1);
-
-  // Fetch FTSE data
-  const fetchFTSE = async () => {
-    setFtseLoading(true);
-    try {
-      const data = await fetchFTSE100Data();
-      
-      if (data && data.length > 0) {
-        const latest = data[data.length - 1];
-        const jan2 = data.find(d => d.date === '2026-01-02');
-        
-        if (jan2 && latest) {
-          setFtseCurrentPrice(latest.value);
-          setFtseStartDate(jan2.date);
-          const ytd = ((latest.value - jan2.value) / jan2.value) * 100;
-          setFtseYTDReturn(ytd);
-        } else {
-          setFtseCurrentPrice(9967.40);
-          setFtseStartDate('2026-01-02');
-          setFtseYTDReturn(0.16);
-        }
-      } else {
-        setFtseCurrentPrice(9967.40);
-        setFtseStartDate('2026-01-02');
-        setFtseYTDReturn(0.16);
-      }
-    } catch (error) {
-      console.error('Error fetching FTSE data:', error);
-      setFtseCurrentPrice(9967.40);
-      setFtseStartDate('2026-01-02');
-      setFtseYTDReturn(0.16);
-    } finally {
-      setFtseLoading(false);
+  ftse100.forEach(p => {
+    const existing = map.get(p.date);
+    if (existing) existing.ftse100 = p.value;
+    else {
+      // Find closest portfolio date for alignment
+      const closest = portfolio.reduce((prev, curr) =>
+        Math.abs(new Date(curr.date).getTime() - new Date(p.date).getTime()) <
+        Math.abs(new Date(prev.date).getTime() - new Date(p.date).getTime())
+          ? curr : prev
+      );
+      const entry = map.get(closest.date);
+      if (entry) entry.ftse100 = p.value;
     }
-  };
+  });
 
-  // Generate monthly data
-  const generateMonthlyData = async () => {
-    try {
-      const transactions = await getTransactions();
-      const monthlyReturns = await generateRealMonthlyReturns(transactions);
-      
-      const formattedData = monthlyReturns.map(m => ({
-        month: m.month,
-        portfolioReturn: m.portfolioReturn,
-        ftseReturn: m.ftseReturn,
-        bestStock: '',
-        bestReturn: 0,
-        worstStock: '',
-        worstReturn: 0,
-      }));
-      
-      setMonthlyTableData(formattedData);
-      
-      let cumulative = 1;
-      for (const m of monthlyReturns) {
-        cumulative = cumulative * (1 + m.portfolioReturn / 100);
-      }
-      const ytd = (cumulative - 1) * 100;
-      setYtdReturn(ytd);
-    } catch (error) {
-      console.error('Error generating monthly data:', error);
+  ftse250.forEach(p => {
+    const existing = map.get(p.date);
+    if (existing) existing.ftse250 = p.value;
+    else {
+      const closest = portfolio.reduce((prev, curr) =>
+        Math.abs(new Date(curr.date).getTime() - new Date(p.date).getTime()) <
+        Math.abs(new Date(prev.date).getTime() - new Date(p.date).getTime())
+          ? curr : prev
+      );
+      const entry = map.get(closest.date);
+      if (entry) entry.ftse250 = p.value;
     }
-  };
+  });
 
-  // Main load function
-  const loadData = useCallback(async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const transactions = await getTransactions();
-      const holdings = await getHoldingsReference();
-      const divs = await getDividends();
-      const prices = await fetchPrices();
-      const positions = await calculatePositions(transactions, prices);
-      const calculated = calculatePortfolioSummary(positions);
-      
-      setPortfolio(calculated);
-      setDividends(divs);
-      
-      const jan1Value = await calculatePortfolioValueOnDate('2026-01-01');
-      setPortfolioValueJan1(jan1Value);
-      
-      // Calculate YTD return from portfolio values
-      if (jan1Value > 0) {
-        const ytd = ((calculated.totalValue - jan1Value) / jan1Value) * 100;
-        setYtdReturn(ytd);
-      }
-      
-      await fetchFTSE();
-      await generateMonthlyData();
-      
-    } catch (error) {
-      console.error('Error loading performance data:', error);
-      setError('Failed to load performance data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+}
+
+// ── Custom tooltip ────────────────────────────────────────────────────────────
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-xl p-3 shadow-2xl text-xs">
+      <p className="text-gray-400 mb-2 font-medium">{label}</p>
+      {payload.map((entry: any) => (
+        <div key={entry.dataKey} className="flex items-center gap-2 mb-1">
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+          <span className="text-gray-300">{entry.name}:</span>
+          <span className="text-white font-semibold ml-auto pl-4">
+            {entry.value != null ? `${entry.value.toFixed(2)}` : '—'}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: 'green' | 'red' | 'blue' | 'neutral';
+}) {
+  const accentClass = {
+    green:   'text-emerald-400',
+    red:     'text-red-400',
+    blue:    'text-blue-400',
+    neutral: 'text-white',
+  }[accent ?? 'neutral'];
+
+  return (
+    <div className="bg-gray-900/50 rounded-xl border border-gray-800 px-4 py-4 sm:px-5 sm:py-5">
+      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{label}</p>
+      <p className={`text-xl sm:text-2xl font-bold ${accentClass}`}>{value}</p>
+      {sub && <p className="text-gray-500 text-xs mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+// ── Toggle pill ───────────────────────────────────────────────────────────────
+
+function Toggle({
+  label,
+  color,
+  active,
+  onClick,
+}: {
+  label: string;
+  color: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+        active
+          ? 'border-transparent text-white'
+          : 'border-gray-700 text-gray-500 bg-transparent'
+      }`}
+      style={active ? { backgroundColor: color + '33', borderColor: color, color } : {}}
+    >
+      <span
+        className="w-2 h-2 rounded-full flex-shrink-0"
+        style={{ backgroundColor: active ? color : '#4b5563' }}
+      />
+      {label}
+    </button>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function PerformancePage() {
+  const [unitValues, setUnitValues]       = useState<UnitValue[]>([]);
+  const [chartData, setChartData]         = useState<ChartPoint[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(true);
+  const [error, setError]                 = useState<string | null>(null);
+
+  // Series visibility toggles
+  const [showPortfolio, setShowPortfolio] = useState(true);
+  const [showFtse100,   setShowFtse100]   = useState(true);
+  const [showFtse250,   setShowFtse250]   = useState(true);
+
+  // Chart mode: rebased (all start at 100) or raw unit value
+  const [chartMode, setChartMode]         = useState<'rebased' | 'raw'>('rebased');
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    async function load() {
+      try {
+        const uvs = await getUnitValues();
+        setUnitValues(uvs);
 
-  const handleAddDividend = async () => {
-    if (!newDividend.holdingId || newDividend.amount <= 0) {
-      alert('Please select a holding and enter a valid amount');
-      return;
+        if (uvs.length === 0) {
+          setLoading(false);
+          setBenchmarkLoading(false);
+          return;
+        }
+
+        // Build initial chart with portfolio only
+        const rebasedPortfolio = rebaseUnitValues(uvs);
+        setChartData(mergeChartData(rebasedPortfolio, [], []));
+        setLoading(false);
+
+        // Fetch benchmarks in background
+        const fromDate = uvs[0].valuation_date;
+        const benchmarks = await fetchBenchmarkData(fromDate);
+        setChartData(mergeChartData(rebasedPortfolio, benchmarks.ftse100, benchmarks.ftse250));
+        setBenchmarkLoading(false);
+      } catch (err) {
+        console.error('Performance page error:', err);
+        setError('Failed to load performance data.');
+        setLoading(false);
+        setBenchmarkLoading(false);
+      }
     }
-    
-    const dividend: Dividend = {
-      id: Math.max(...dividends.map(d => d.id), 0) + 1,
-      holdingId: newDividend.holdingId,
-      date: newDividend.date,
-      amount: newDividend.amount,
-      currency: 'GBP',
-      notes: newDividend.notes,
-    };
-    
-    const updatedDividends = [...dividends, dividend];
-    await saveDividends(updatedDividends);
-    setDividends(updatedDividends);
-    setShowAddDividend(false);
-    setNewDividend({ holdingId: 0, date: new Date().toISOString().split('T')[0], amount: 0, notes: '' });
-    loadData();
-    alert('Dividend added successfully!');
-  };
+    load();
+  }, []);
 
-  const handleDeleteDividend = async (id: number) => {
-    if (confirm('Delete this dividend record?')) {
-      const updatedDividends = dividends.filter(d => d.id !== id);
-      await saveDividends(updatedDividends);
-      setDividends(updatedDividends);
-      loadData();
-    }
-  };
+  // Raw chart data (unit value, no rebase)
+  const rawChartData: ChartPoint[] = unitValues.map(uv => ({
+    date:      uv.valuation_date,
+    label:     formatDate(uv.valuation_date),
+    portfolio: uv.unit_value,
+  }));
 
-  const getCompanyName = async (holdingId: number): Promise<string> => {
-    const holdings = await getHoldingsReference();
-    const holding = holdings.find((h: any) => h.id === holdingId);
-    return holding?.name || `Holding ${holdingId}`;
-  };
+  const displayData = chartMode === 'rebased' ? chartData : rawChartData;
+  const summary     = calcPerformanceSummary(unitValues);
 
-  const totalDividends = dividends.reduce((sum, d) => sum + d.amount, 0);
-  const totalReturnWithDividends = (portfolio?.totalPnl || 0) + totalDividends;
-  const totalReturnPercentWithDividends = portfolio?.totalCost 
-    ? (totalReturnWithDividends / portfolio.totalCost) * 100 
-    : 0;
-  
-  const currentValue = portfolio?.totalValue || 0;
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
         <Navigation />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
-              <p className="mt-4 text-gray-400">Loading performance data...</p>
-            </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mx-auto" />
+            <p className="mt-3 text-gray-400 text-sm">Loading performance data...</p>
           </div>
         </div>
       </div>
     );
   }
 
-  if (error || !portfolio) {
+  if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
         <Navigation />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="bg-red-900/30 border border-red-700 rounded-xl p-6 text-center">
-            <p className="text-red-400">{error || 'Failed to load performance data'}</p>
-            <button
-              onClick={loadData}
-              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
-            >
-              Try Again
-            </button>
+            <p className="text-red-400">{error}</p>
           </div>
         </div>
       </div>
@@ -246,318 +261,231 @@ export default function PerformancePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <Navigation />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Performance Profile</h1>
-            <p className="text-sm text-gray-400 mt-1">
-              Year-to-date performance • From January 1, 2026
-            </p>
-          </div>
-          <RefreshButton onRefresh={loadData} />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Unit Value Performance</h1>
+          <p className="text-xs sm:text-sm text-gray-400 mt-1">
+            Unit value progression since inception · {unitValues.length} monthly valuations
+          </p>
         </div>
 
-        {/* Performance Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">YTD Return</p>
-            <p className={`text-2xl font-bold mt-1 ${ytdReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {formatPercent(ytdReturn)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Since Jan 1, 2026</p>
-          </div>
-          
-          <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Portfolio Return</p>
-            <p className={`text-2xl font-bold mt-1 ${portfolio.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {formatPercent(portfolio.totalPnlPercent)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Total return (since inception)</p>
-          </div>
-          
-          <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Total Dividends</p>
-            <p className="text-2xl font-bold text-emerald-400 mt-1">{formatCurrency(totalDividends)}</p>
-            <p className="text-xs text-gray-500 mt-1">From {dividends.length} payments</p>
-          </div>
-          
-          <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Total Return (with Divs)</p>
-            <p className={`text-2xl font-bold mt-1 ${totalReturnWithDividends >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {formatPercent(totalReturnPercentWithDividends)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Including dividends</p>
-          </div>
-          
-          <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">FTSE 100</p>
-            {ftseLoading ? (
-              <div className="mt-1">
-                <div className="animate-pulse h-8 w-24 bg-gray-700 rounded"></div>
-              </div>
-            ) : (
-              <>
-                <p className="text-2xl font-bold text-blue-400 mt-1">
-                  {ftseCurrentPrice ? ftseCurrentPrice.toFixed(2) : '—'}
-                </p>
-                <p className={`text-xs mt-1 ${ftseYTDReturn && ftseYTDReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  YTD: {ftseYTDReturn !== null ? formatPercent(ftseYTDReturn) : '—'}
-                  {ftseStartDate && ` (since ${ftseStartDate})`}
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* YTD Performance Comparison */}
-        <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 mb-8">
-          <h2 className="text-white font-semibold mb-4">Year-to-Date Performance</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-800/30 rounded-lg p-4">
-              <p className="text-gray-400 text-sm mb-2">Portfolio Performance</p>
-              <div className="flex justify-between items-baseline">
-                <span className="text-3xl font-bold text-white">{formatCurrency(currentValue)}</span>
-                <span className={`text-lg font-semibold ${ytdReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {formatPercent(ytdReturn)}
-                </span>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">
-                Started Jan 1: {formatCurrency(portfolioValueJan1 || 0)}
-              </div>
-            </div>
-            
-            <div className="bg-gray-800/30 rounded-lg p-4">
-              <p className="text-gray-400 text-sm mb-2">FTSE 100 Performance</p>
-              <div className="flex justify-between items-baseline">
-                <span className="text-3xl font-bold text-white">{ftseCurrentPrice?.toFixed(2) || '—'}</span>
-                <span className={`text-lg font-semibold ${ftseYTDReturn && ftseYTDReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {ftseYTDReturn !== null ? formatPercent(ftseYTDReturn) : '—'}
-                </span>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">
-                {ftseStartDate ? `Started ${ftseStartDate}` : 'Starting date unavailable'}
-              </div>
-              <div className="mt-1 text-xs">
-                <a 
-                  href="https://finance.yahoo.com/quote/%5EFTSE/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300"
-                >
-                  View FTSE 100 on Yahoo Finance →
-                </a>
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-4 pt-4 border-t border-gray-700">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400 text-sm">Outperformance vs FTSE 100:</span>
-              <span className={`text-lg font-bold ${ytdReturn > (ftseYTDReturn || 0) ? 'text-emerald-400' : 'text-red-400'}`}>
-                {formatPercent(ytdReturn - (ftseYTDReturn || 0))}
-              </span>
-            </div>
-            <div className="mt-2 text-sm text-gray-500">
-              Your portfolio has {ytdReturn > (ftseYTDReturn || 0) ? 'outperformed' : 'underperformed'} the FTSE 100 this year
-            </div>
-          </div>
-        </div>
-
-        {/* Individual Stock Performance Chart */}
-        {portfolio.holdings.length > 0 && (
-          <div className="mb-8">
-            <StockPerformanceChart 
-              holdings={portfolio.holdings}
-              title="Individual Stock Performance"
+        {/* Summary stats */}
+        {summary && (
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <StatCard
+              label="Current Unit Value"
+              value={`£${fmt4(summary.currentUnitValue)}`}
+              sub={`Started £${fmt4(summary.firstUnitValue)}`}
+              accent="neutral"
+            />
+            <StatCard
+              label="Total Return"
+              value={fmtPct(summary.totalReturnPercent)}
+              sub={`Over ${summary.monthCount} months`}
+              accent={summary.totalReturnPercent >= 0 ? 'green' : 'red'}
+            />
+            <StatCard
+              label="Best Month"
+              value={summary.bestMonth ? fmtPct(summary.bestMonth.change) : '—'}
+              sub={summary.bestMonth ? formatDateLong(summary.bestMonth.date) : undefined}
+              accent="green"
+            />
+            <StatCard
+              label="Worst Month"
+              value={summary.worstMonth ? fmtPct(summary.worstMonth.change) : '—'}
+              sub={summary.worstMonth ? formatDateLong(summary.worstMonth.date) : undefined}
+              accent="red"
             />
           </div>
         )}
 
-        {/* Monthly Returns Table with Toggle */}
-        <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 mb-8">
-          <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
-            <h2 className="text-white font-semibold text-lg">Monthly Returns</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMonthlyView('portfolio')}
-                className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                  monthlyView === 'portfolio' 
-                    ? 'bg-emerald-600 text-white' 
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-              >
-                Portfolio Returns
-              </button>
-              <button
-                onClick={() => setMonthlyView('ftse')}
-                className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                  monthlyView === 'ftse' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-              >
-                FTSE 100 Returns
-              </button>
+        {/* Chart card */}
+        <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4 sm:p-6 mb-6">
+
+          {/* Chart controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+            <div>
+              <h2 className="text-white font-semibold text-sm sm:text-base">
+                {chartMode === 'rebased' ? 'Relative Performance (rebased to 100)' : 'Unit Value (£)'}
+              </h2>
+              {benchmarkLoading && chartMode === 'rebased' && (
+                <p className="text-gray-500 text-xs mt-0.5">Loading benchmark data...</p>
+              )}
             </div>
-          </div>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {monthsToShow.map((month) => {
-              const returnValue = monthlyView === 'portfolio' ? month.portfolioReturn : month.ftseReturn;
-              const isPositive = returnValue >= 0;
-              return (
-                <div
-                  key={month.month}
-                  className={`rounded-lg p-3 transition-all hover:scale-105 ${isPositive ? 'bg-emerald-500/10 border-l-2 border-emerald-500' : 'bg-red-500/10 border-l-2 border-red-500'}`}
+
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Chart mode toggle */}
+              <div className="flex rounded-lg border border-gray-700 overflow-hidden text-xs">
+                <button
+                  onClick={() => setChartMode('rebased')}
+                  className={`px-3 py-1.5 transition-colors ${
+                    chartMode === 'rebased'
+                      ? 'bg-gray-700 text-white'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
                 >
-                  <div className="text-center">
-                    <p className="text-gray-400 text-xs uppercase font-medium">{month.month}</p>
-                    <p className={`text-xl font-bold mt-1 ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {formatPercent(returnValue)}
-                    </p>
-                  </div>
+                  Relative
+                </button>
+                <button
+                  onClick={() => setChartMode('raw')}
+                  className={`px-3 py-1.5 transition-colors ${
+                    chartMode === 'raw'
+                      ? 'bg-gray-700 text-white'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  Unit Value
+                </button>
+              </div>
+
+              {/* Series toggles — only in rebased mode */}
+              {chartMode === 'rebased' && (
+                <div className="flex gap-1.5 flex-wrap">
+                  <Toggle label="MESI" color="#10b981" active={showPortfolio} onClick={() => setShowPortfolio(v => !v)} />
+                  <Toggle label="FTSE 100" color="#3b82f6" active={showFtse100} onClick={() => setShowFtse100(v => !v)} />
+                  <Toggle label="FTSE 250" color="#f59e0b" active={showFtse250} onClick={() => setShowFtse250(v => !v)} />
                 </div>
-              );
-            })}
-          </div>
-          
-          <div className="mt-4 flex justify-between items-center text-xs text-gray-500">
-            <div className="flex gap-4">
-              <span>📊 <span className="text-emerald-400">Green</span> = positive month</span>
-              <span>📉 <span className="text-red-400">Red</span> = negative month</span>
+              )}
             </div>
-            {monthlyView === 'portfolio' ? (
-              <div>
-                Best: <span className="text-emerald-400">JAN +17.62%</span>
-                <span className="mx-2">|</span>
-                Worst: <span className="text-red-400">MAR -14.08%</span>
-              </div>
-            ) : (
-              <div>
-                Best: <span className="text-emerald-400">FEB +5.50%</span>
-                <span className="mx-2">|</span>
-                Worst: <span className="text-red-400">MAR -7.57%</span>
-              </div>
-            )}
           </div>
+
+          {/* Chart */}
+          {unitValues.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-gray-500 text-sm">
+              No performance data yet — upload PDFs and run Sync on the Treasurer page.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={340}>
+              <LineChart data={displayData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: '#6b7280', fontSize: 11 }}
+                  axisLine={{ stroke: '#374151' }}
+                  tickLine={false}
+                />
+                <YAxis
+                    domain={['auto', 'auto']}
+                    tick={{ fill: '#6b7280', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={chartMode === 'raw' ? 55 : 45}
+                    tickFormatter={v => chartMode === 'raw' ? `£${v.toFixed(0)}` : `${v}`}
+                  />
+                <Tooltip content={<CustomTooltip />} />
+
+                {/* Portfolio line — always shown in raw mode */}
+                {(showPortfolio || chartMode === 'raw') && (
+                  <Line
+                    type="monotone"
+                    dataKey="portfolio"
+                    name="MESI"
+                    stroke="#10b981"
+                    strokeWidth={2.5}
+                    dot={{ fill: '#10b981', r: 3, strokeWidth: 0 }}
+                    activeDot={{ r: 5, strokeWidth: 0 }}
+                    connectNulls
+                  />
+                )}
+
+                {chartMode === 'rebased' && showFtse100 && (
+                  <Line
+                    type="monotone"
+                    dataKey="ftse100"
+                    name="FTSE 100"
+                    stroke="#3b82f6"
+                    strokeWidth={1.5}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                    strokeDasharray="4 2"
+                    connectNulls
+                  />
+                )}
+
+                {chartMode === 'rebased' && showFtse250 && (
+                  <Line
+                    type="monotone"
+                    dataKey="ftse250"
+                    name="FTSE 250"
+                    stroke="#f59e0b"
+                    strokeWidth={1.5}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                    strokeDasharray="4 2"
+                    connectNulls
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Dividends Section */}
-        <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden mb-8">
-          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-800">
-            <h2 className="text-white font-semibold">Dividend Income</h2>
-            <button
-              onClick={() => setShowAddDividend(!showAddDividend)}
-              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs"
-            >
-              + Add Dividend
-            </button>
-          </div>
-          
-          {showAddDividend && (
-            <div className="p-6 border-b border-gray-800 bg-gray-800/30">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <select
-                  value={newDividend.holdingId}
-                  onChange={(e) => setNewDividend({ ...newDividend, holdingId: parseInt(e.target.value) })}
-                  className="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                >
-                  <option value={0}>Select Holding</option>
-                  {portfolio.holdings.map(h => (
-                    <option key={h.holdingId} value={h.holdingId}>{h.name}</option>
-                  ))}
-                </select>
-                <input
-                  type="date"
-                  value={newDividend.date}
-                  onChange={(e) => setNewDividend({ ...newDividend, date: e.target.value })}
-                  className="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                />
-                <input
-                  type="number"
-                  placeholder="Amount (£)"
-                  value={newDividend.amount || ''}
-                  onChange={(e) => setNewDividend({ ...newDividend, amount: parseFloat(e.target.value) })}
-                  className="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                  step="0.01"
-                />
-                <input
-                  type="text"
-                  placeholder="Notes (optional)"
-                  value={newDividend.notes}
-                  onChange={(e) => setNewDividend({ ...newDividend, notes: e.target.value })}
-                  className="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500"
-                />
-              </div>
-              <div className="flex gap-2 mt-4">
-                <button
-                  onClick={handleAddDividend}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm"
-                >
-                  Save Dividend
-                </button>
-                <button
-                  onClick={() => setShowAddDividend(false)}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
+        {/* Monthly breakdown table */}
+        {unitValues.length > 0 && (
+          <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-800">
+              <h2 className="text-white font-semibold text-sm sm:text-base">Monthly Breakdown</h2>
             </div>
-          )}
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-900/80 border-b border-gray-800">
-                <tr className="text-left">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Company</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-400">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400">Notes</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-400">Actions</th>
-                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {[...dividends].reverse().map((div) => (
-                  <tr key={div.id} className="hover:bg-gray-800/50">
-                    <td className="px-6 py-3 text-gray-300">{div.date}</td>
-                    <td className="px-6 py-3 text-white">
-                      {portfolio?.holdings.find(h => h.holdingId === div.holdingId)?.name || `Holding ${div.holdingId}`}
-                    </td>
-                    <td className="px-6 py-3 text-right text-emerald-400">{formatCurrency(div.amount)}</td>
-                    <td className="px-6 py-3 text-gray-400">{div.notes || '-'}</td>
-                    <td className="px-6 py-3 text-center">
-                      <button
-                        onClick={() => handleDeleteDividend(div.id)}
-                        className="text-red-400 hover:text-red-300 text-xs"
-                      >
-                        Delete
-                      </button>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left text-gray-500 text-xs uppercase tracking-wider px-4 sm:px-6 py-3 font-medium">Date</th>
+                    <th className="text-right text-gray-500 text-xs uppercase tracking-wider px-4 sm:px-6 py-3 font-medium">Unit Value</th>
+                    <th className="text-right text-gray-500 text-xs uppercase tracking-wider px-4 sm:px-6 py-3 font-medium">Monthly Change</th>
+                    <th className="text-right text-gray-500 text-xs uppercase tracking-wider px-4 sm:px-6 py-3 font-medium">Since Inception</th>
                   </tr>
-                ))}
-                {dividends.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      No dividend payments recorded. Click "Add Dividend" to start tracking.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              <tfoot className="bg-gray-900 border-t border-gray-800">
-                <tr>
-                  <td colSpan={2} className="px-6 py-3 text-right font-semibold text-gray-300">Total Dividends</td>
-                  <td className="px-6 py-3 text-right font-bold text-emerald-400">{formatCurrency(totalDividends)}</td>
-                  <td colSpan={2}></td>
-                </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody>
+                  {[...unitValues]
+                    .sort((a, b) => new Date(b.valuation_date).getTime() - new Date(a.valuation_date).getTime())
+                    .map((uv, idx, arr) => {
+                      const prev = arr[idx + 1];
+                      const monthlyChange = prev
+                        ? ((uv.unit_value - prev.unit_value) / prev.unit_value) * 100
+                        : null;
+                      const inceptionChange =
+                        ((uv.unit_value - unitValues[0].unit_value) / unitValues[0].unit_value) * 100;
+
+                      return (
+                        <tr
+                          key={uv.id}
+                          className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
+                        >
+                          <td className="px-4 sm:px-6 py-3 text-gray-300">
+                            {formatDateLong(uv.valuation_date)}
+                          </td>
+                          <td className="px-4 sm:px-6 py-3 text-right text-white font-mono font-medium">
+                            £{fmt4(uv.unit_value)}
+                          </td>
+                          <td className={`px-4 sm:px-6 py-3 text-right font-mono font-medium ${
+                            monthlyChange == null
+                              ? 'text-gray-500'
+                              : monthlyChange >= 0
+                              ? 'text-emerald-400'
+                              : 'text-red-400'
+                          }`}>
+                            {monthlyChange == null ? '—' : fmtPct(monthlyChange)}
+                          </td>
+                          <td className={`px-4 sm:px-6 py-3 text-right font-mono font-medium ${
+                            inceptionChange >= 0 ? 'text-emerald-400' : 'text-red-400'
+                          }`}>
+                            {fmtPct(inceptionChange)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="mt-6 text-center text-xs text-gray-500">
-          💡 YTD return calculated from portfolio value on January 1, 2026. 
-          Monthly returns based on actual performance data. Click the buttons above to toggle between Portfolio and FTSE 100 returns.
+          Unit values extracted from monthly treasurer reports · Benchmarks via Yahoo Finance
         </div>
       </div>
     </div>
