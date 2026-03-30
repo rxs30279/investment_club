@@ -32,6 +32,8 @@ A full-stack web application for managing and tracking a small investment club p
 - Monthly breakdown table with % change and since-inception return
 - Toggle between relative performance and raw unit value views
 
+![Dashboard Overview](Unit Value Performance.png)
+
 ### 📈 General Performance
 
 - Individual share performance since purchase (horizontal bar chart)
