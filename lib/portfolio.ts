@@ -206,5 +206,3 @@ export async function fetchFTSE250Data(): Promise<{ date: string; value: number 
   }
 }
 
-// ==================== EXPORTS ====================
-export { getTransactions, getHoldingsReference, fetchPrices, calculatePositions, calculatePortfolioSummary, fetchFTSE100Data, fetchFTSE250Data };
