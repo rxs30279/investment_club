@@ -35,6 +35,7 @@ export interface Position {
   shares: number;
   avgCost: number;
   totalCost: number;
+  costBasis: number;
   currentPrice: number;
   currentValue: number;
   pnl: number;

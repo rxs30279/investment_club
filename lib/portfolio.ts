@@ -164,7 +164,7 @@ export async function calculatePositions(transactions: Transaction[], currentPri
     const pnl = currentValue - pos.totalCost;
     const pnlPercent = pos.totalCost > 0 ? (pnl / pos.totalCost) * 100 : 0;
 
-    positions.push({ holdingId: pos.holdingId, name: pos.name, ticker: pos.ticker, sector: pos.sector, shares: pos.shares, avgCost, totalCost: pos.totalCost, currentPrice, currentValue, pnl, pnlPercent });
+    positions.push({ holdingId: pos.holdingId, name: pos.name, ticker: pos.ticker, sector: pos.sector, shares: pos.shares, avgCost, totalCost: pos.totalCost, costBasis: pos.totalCost, currentPrice, currentValue, pnl, pnlPercent });
   });
 
   return positions;
