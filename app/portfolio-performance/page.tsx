@@ -384,7 +384,7 @@ export default function PortfolioPerformancePage() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Portfolio Performance</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Stock Performance</h1>
           <p className="text-xs sm:text-sm text-gray-400 mt-1">
             Year-to-date · {new Date().getFullYear()} · Costs &amp; dividends reset each January
           </p>

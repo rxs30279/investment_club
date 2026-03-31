@@ -141,77 +141,127 @@ const PieChart = ({ data }: { data: { sector: string; value: number; color: stri
   );
 };
 
+// ── Treemap layout ─────────────────────────────────────────────────────────────
+// Recursively splits a rectangle into blocks proportional to each item's weight.
+// Alternates horizontal/vertical splits based on whichever keeps blocks squarer.
+
+interface TreemapRect {
+  holdingId: number;
+  name: string;
+  percentage: number;
+  currentValue: number;
+  x: number; // % from left
+  y: number; // % from top
+  w: number; // % width
+  h: number; // % height
+}
+
+function buildTreemap(
+  items: { holdingId: number; name: string; percentage: number; currentValue: number }[],
+  x: number, y: number, w: number, h: number,
+): TreemapRect[] {
+  if (items.length === 0) return [];
+  if (items.length === 1) return [{ ...items[0], x, y, w, h }];
+
+  const total = items.reduce((s, i) => s + i.percentage, 0);
+
+  // Find the split point that most evenly halves the area
+  let runningSum = 0;
+  let splitIdx = items.length - 1;
+  for (let i = 0; i < items.length - 1; i++) {
+    runningSum += items[i].percentage;
+    if (runningSum >= total / 2) { splitIdx = i + 1; break; }
+  }
+
+  const ratio = items.slice(0, splitIdx).reduce((s, i) => s + i.percentage, 0) / total;
+
+  if (w >= h) {
+    const w1 = w * ratio;
+    return [
+      ...buildTreemap(items.slice(0, splitIdx), x,      y, w1,     h),
+      ...buildTreemap(items.slice(splitIdx),     x + w1, y, w - w1, h),
+    ];
+  } else {
+    const h1 = h * ratio;
+    return [
+      ...buildTreemap(items.slice(0, splitIdx), x, y,      w, h1),
+      ...buildTreemap(items.slice(splitIdx),     x, y + h1, w, h - h1),
+    ];
+  }
+}
+
 // Portfolio Weighting Heat Map Component
 const WeightingHeatMap = ({ holdings, totalValue }: { holdings: Position[]; totalValue: number }) => {
-  // Sort by value descending
-  const sorted = [...holdings].sort((a, b) => b.currentValue - a.currentValue);
-  
-  // Calculate color intensity based on percentage
-  const getColorIntensity = (percentage: number): string => {
-    if (percentage >= 20) return 'bg-red-600';
-    if (percentage >= 15) return 'bg-red-500';
-    if (percentage >= 10) return 'bg-orange-500';
-    if (percentage >= 5) return 'bg-yellow-600';
-    if (percentage >= 2) return 'bg-emerald-500';
-    return 'bg-emerald-400';
+  const sorted = [...holdings]
+    .sort((a, b) => b.currentValue - a.currentValue)
+    .map(h => ({
+      holdingId:    h.holdingId,
+      name:         h.name,
+      percentage:   (h.currentValue / totalValue) * 100,
+      currentValue: h.currentValue,
+    }));
+
+  const rects = buildTreemap(sorted, 0, 0, 100, 100);
+
+  const getColor = (pct: number) => {
+    if (pct >= 15) return '#dc2626';
+    if (pct >= 11) return '#ea580c';
+    if (pct >= 8)  return '#d97706';
+    if (pct >= 5)  return '#eab308';
+    if (pct >= 3)  return '#16a34a';
+    return '#15803d';
   };
-  
-  // Calculate text color based on background
-  const getTextColor = (percentage: number): string => {
-    if (percentage >= 10) return 'text-white';
-    return 'text-gray-800';
-  };
-  
+
   return (
     <div className="mt-6">
       <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
         <span>🎯</span> Portfolio Weighting
-        <span className="text-xs text-gray-500 font-normal">(by current value)</span>
+        <span className="text-xs text-gray-500 font-normal">(block size = portfolio weight)</span>
       </h3>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-        {sorted.map((holding) => {
-          const percentage = (holding.currentValue / totalValue) * 100;
-          const colorClass = getColorIntensity(percentage);
-          const textColor = getTextColor(percentage);
-          
+
+      {/* Treemap container — fixed height, blocks positioned absolutely */}
+      <div className="relative w-full rounded-lg overflow-hidden" style={{ height: '340px' }}>
+        {rects.map(rect => {
+          const areaApprox = rect.w * rect.h;
+
           return (
             <div
-              key={holding.holdingId}
-              className={`${colorClass} rounded-lg p-2 transition-all hover:scale-105 cursor-help`}
-              title={`${holding.name}: ${percentage.toFixed(1)}% of portfolio`}
+              key={rect.holdingId}
+              className="absolute transition-all hover:brightness-110 cursor-help flex items-center justify-center"
+              style={{
+                left:            `calc(${rect.x}% + 2px)`,
+                top:             `calc(${rect.y}% + 2px)`,
+                width:           `calc(${rect.w}% - 4px)`,
+                height:          `calc(${rect.h}% - 4px)`,
+                backgroundColor: getColor(rect.percentage),
+                borderRadius:    '6px',
+              }}
+              title={`${rect.name}: ${rect.percentage.toFixed(1)}% · ${formatCurrency(rect.currentValue)}`}
             >
-              <div className="text-center">
-                <p className={`text-xs font-medium truncate ${textColor}`}>
-                  {holding.name.split(' ').slice(0, 2).join(' ')}
+              {areaApprox > 40 && (
+                <p className="text-center px-2 text-sm font-bold text-white leading-tight w-full truncate">
+                  {rect.name.split(' ')[0]}
                 </p>
-                <p className={`text-lg font-bold ${textColor}`}>
-                  {percentage.toFixed(1)}%
-                </p>
-                <p className={`text-[10px] ${textColor} opacity-80`}>
-                  {formatCurrency(holding.currentValue)}
-                </p>
-              </div>
+              )}
             </div>
           );
         })}
       </div>
-      <div className="mt-3 flex justify-between text-xs text-gray-500">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-600 rounded"></div>
-          <span>&gt;20%</span>
-          <div className="w-3 h-3 bg-red-500 rounded ml-2"></div>
-          <span>15-20%</span>
-          <div className="w-3 h-3 bg-orange-500 rounded ml-2"></div>
-          <span>10-15%</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-yellow-600 rounded"></div>
-          <span>5-10%</span>
-          <div className="w-3 h-3 bg-emerald-500 rounded ml-2"></div>
-          <span>2-5%</span>
-          <div className="w-3 h-3 bg-emerald-400 rounded ml-2"></div>
-          <span>&lt;2%</span>
-        </div>
+
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+        {[
+          { color: '#dc2626', label: '>15%' },
+          { color: '#ea580c', label: '11–15%' },
+          { color: '#d97706', label: '8–11%' },
+          { color: '#eab308', label: '5–8%' },
+          { color: '#16a34a', label: '3–5%' },
+          { color: '#15803d', label: '<3%' },
+        ].map(({ color, label }) => (
+          <span key={label} className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded inline-block" style={{ backgroundColor: color }} />
+            {label}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -281,27 +331,6 @@ export default function HoldingsPage() {
   }, [loadData]);
 
   // Prepare pie chart data
-  const pieData = useMemo(() => {
-    if (!portfolio) return [];
-    const allocation: Record<string, number> = {};
-    portfolio.holdings.forEach((holding: Position) => {
-      allocation[holding.sector] = (allocation[holding.sector] || 0) + holding.currentValue;
-    });
-    return Object.entries(allocation).map(([sector, value]) => ({
-      sector,
-      value,
-      color: sectorColors[sector] || sectorColors.Other,
-    }));
-  }, [portfolio]);
-
-  const sectorAllocation = useMemo(() => {
-    const allocation: Record<string, number> = {};
-    portfolio?.holdings.forEach((holding: Position) => {
-      allocation[holding.sector] = (allocation[holding.sector] || 0) + holding.currentValue;
-    });
-    return allocation;
-  }, [portfolio]);
-
   const sectors = useMemo(() => ['All', ...new Set(portfolio?.holdings.map(h => h.sector) || [])], [portfolio]);
   const filteredHoldings = useMemo(() => 
     selectedSector === 'All' 
@@ -354,38 +383,6 @@ export default function HoldingsPage() {
             <p className="text-sm text-gray-400 mt-1">Sector allocation and 52-week range analysis</p>
           </div>
           <RefreshButton onRefresh={loadData} />
-        </div>
-
-        {/* Sector Allocation Chart + Heat Map */}
-        <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 mb-8">
-          <h2 className="text-white font-semibold mb-4">Sector Allocation</h2>
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            <div className="w-full md:w-1/2">
-              {pieData.length > 0 ? (
-                <PieChart data={pieData} />
-              ) : (
-                <div className="text-center text-gray-400 py-8">No sector data available</div>
-              )}
-            </div>
-            <div className="w-full md:w-1/2">
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(sectorAllocation).map(([sector, value]) => {
-                  const total = Object.values(sectorAllocation).reduce((a, b) => a + b, 0);
-                  const percentage = (value / total) * 100;
-                  return (
-                    <div key={sector} className="bg-gray-800/50 rounded-lg p-3">
-                      <p className="text-gray-400 text-xs">{sector}</p>
-                      <p className="text-white font-semibold">{formatCurrency(value)}</p>
-                      <p className="text-emerald-400 text-sm">{percentage.toFixed(1)}%</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          
-          {/* Portfolio Weighting Heat Map */}
-          <WeightingHeatMap holdings={portfolio.holdings} totalValue={portfolio.totalValue} />
         </div>
 
         {/* Sector Filter */}

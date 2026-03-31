@@ -9,7 +9,7 @@ const navItems = [
   { href: '/history', label: 'History', icon: '📈' },
   { href: '/holdings', label: 'Holdings', icon: '📋' },
   { href: '/performance', label: 'Unit Performance', icon: '📊' },
-  { href: '/portfolio-performance', label: 'General Performance', icon: '📈' },
+  { href: '/portfolio-performance', label: 'Stock Performance', icon: '📈' },
   { href: '/minutes', label: 'Minutes', icon: '📝' },
   { href: '/treasurer', label: 'Treasurer', icon: '💰' },
   { href: '/manage', label: 'Manage', icon: '⚙️' },

@@ -26,6 +26,7 @@ interface HoldingCompare {
   holdingId: number;
   name: string;
   ticker: string;
+  firstPurchaseDate: string | null;
   soyShares: number;
   soyValue: number;
   curShares: number;
@@ -95,7 +96,21 @@ function buildSnapshot(
   return { totalValue, holdings };
 }
 
-function buildComparison(soy: PerformanceSnapshot, cur: PerformanceSnapshot): HoldingCompare[] {
+function buildFirstPurchaseDates(transactions: Transaction[]): Map<number, string> {
+  const map = new Map<number, string>();
+  for (const tx of transactions) {
+    if (tx.type !== 'buy') continue;
+    const existing = map.get(tx.holdingId);
+    if (!existing || tx.date < existing) map.set(tx.holdingId, tx.date);
+  }
+  return map;
+}
+
+function buildComparison(
+  soy: PerformanceSnapshot,
+  cur: PerformanceSnapshot,
+  firstPurchaseDates: Map<number, string>,
+): HoldingCompare[] {
   const all = new Map<number, HoldingCompare>();
 
   for (const h of soy.holdings) {
@@ -103,6 +118,7 @@ function buildComparison(soy: PerformanceSnapshot, cur: PerformanceSnapshot): Ho
       holdingId: h.holdingId,
       name: h.name,
       ticker: h.ticker,
+      firstPurchaseDate: firstPurchaseDates.get(h.holdingId) ?? null,
       soyShares: h.shares,
       soyValue: h.value,
       curShares: 0,
@@ -127,6 +143,7 @@ function buildComparison(soy: PerformanceSnapshot, cur: PerformanceSnapshot): Ho
         holdingId: h.holdingId,
         name: h.name,
         ticker: h.ticker,
+        firstPurchaseDate: firstPurchaseDates.get(h.holdingId) ?? null,
         soyShares: 0,
         soyValue: 0,
         curShares: h.shares,
@@ -145,7 +162,16 @@ function buildComparison(soy: PerformanceSnapshot, cur: PerformanceSnapshot): Ho
     item.valueChangePct = item.soyValue > 0 ? (item.valueChange / item.soyValue) * 100 : 0;
   });
 
-  return Array.from(all.values()).sort((a, b) => b.curValue - a.curValue);
+  return Array.from(all.values()).sort((a, b) => {
+    // Closed positions always sink to the bottom
+    if (a.isClosed !== b.isClosed) return a.isClosed ? 1 : -1;
+    // Then sort by first purchase date ascending (oldest first)
+    if (a.firstPurchaseDate && b.firstPurchaseDate)
+      return b.firstPurchaseDate.localeCompare(a.firstPurchaseDate);
+    if (a.firstPurchaseDate) return -1;
+    if (b.firstPurchaseDate) return 1;
+    return 0;
+  });
 }
 
 const formatCurrency = (value: number): string =>
@@ -183,10 +209,11 @@ export default function HistoryPage() {
       const today = new Date().toISOString().split('T')[0];
       const soySS = buildSnapshot(transactions, holdingInfo, soyPrices, SOY_DATE);
       const curSS = buildSnapshot(transactions, holdingInfo, livePrices, today);
+      const firstPurchaseDates = buildFirstPurchaseDates(transactions);
 
       setSoy(soySS);
       setCur(curSS);
-      setComparison(buildComparison(soySS, curSS));
+      setComparison(buildComparison(soySS, curSS, firstPurchaseDates));
       setLastUpdated(new Date());
     } catch (e: any) {
       setError(e?.message ?? 'Failed to load history data.');
@@ -323,6 +350,7 @@ export default function HistoryPage() {
                 <tr className="border-b border-gray-800 bg-gray-900/80">
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Company</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ticker</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">First Purchased</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">2 Jan Value</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current Value</th>
@@ -382,6 +410,13 @@ export default function HistoryPage() {
                         </a>
                       </td>
 
+                      {/* First purchased */}
+                      <td className="px-6 py-4 text-gray-400 text-xs">
+                        {item.firstPurchaseDate
+                          ? new Date(item.firstPurchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                          : '—'}
+                      </td>
+
                       {/* Shares */}
                       <td className="px-6 py-4 text-right font-mono text-xs text-gray-300">
                         {item.isClosed ? (
@@ -424,7 +459,7 @@ export default function HistoryPage() {
               {/* Totals row */}
               <tfoot className="bg-gray-900 border-t border-gray-700">
                 <tr>
-                  <td colSpan={3} className="px-6 py-4 text-right font-semibold text-gray-300">
+                  <td colSpan={4} className="px-6 py-4 text-right font-semibold text-gray-300">
                     Total Portfolio
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-gray-300">
