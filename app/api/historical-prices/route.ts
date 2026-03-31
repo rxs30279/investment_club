@@ -41,8 +41,6 @@ export async function GET(request: Request) {
     const holdings = parsedData.holdings || [];
     const uniqueTickers = [...new Set(holdings.map((h) => h.ticker))];
 
-    console.log(`Fetching historical prices for ${uniqueTickers.length} tickers on ${dateParam}`);
-
     const prices: Record<string, number> = {};
 
     for (const ticker of uniqueTickers) {

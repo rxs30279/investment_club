@@ -12,7 +12,7 @@ import {
   calculatePortfolioSummary,
   getDividends,
   saveDividends,
-  fetchFTSE100Data,
+  fetchFTSEData,
 } from '@/lib/portfolio';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -69,11 +69,30 @@ function firstPurchaseDates(transactions: Transaction[]): Map<number, string> {
 
 // ── Build monthly returns from unit_values ────────────────────────────────────
 
-interface MonthlyReturn { month: string; portfolioReturn: number; ftseReturn: number; }
+interface MonthlyReturn { month: string; portfolioReturn: number; ftse100Return: number; ftse250Return: number; }
+
+function buildFtseMonthlyMap(data: { date: string; value: number }[]): Map<string, number> {
+  const monthMap = new Map<string, { first: number; last: number }>();
+  for (const point of data) {
+    const ym = point.date.slice(0, 7);
+    const existing = monthMap.get(ym);
+    if (!existing) monthMap.set(ym, { first: point.value, last: point.value });
+    else existing.last = point.value;
+  }
+  const result = new Map<string, number>();
+  const months = Array.from(monthMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  for (let i = 1; i < months.length; i++) {
+    const [ym, { last }] = months[i];
+    const prevLast = months[i - 1][1].last;
+    result.set(ym, ((last - prevLast) / prevLast) * 100);
+  }
+  return result;
+}
 
 function buildMonthlyReturns(
   unitValues: { valuation_date: string; unit_value: number }[],
-  ftseMap: Map<string, number>
+  ftse100Map: Map<string, number>,
+  ftse250Map: Map<string, number>,
 ): MonthlyReturn[] {
   const sorted = [...unitValues].sort(
     (a, b) => new Date(a.valuation_date).getTime() - new Date(b.valuation_date).getTime()
@@ -86,10 +105,13 @@ function buildMonthlyReturns(
       .toLocaleDateString('en-GB', { month: 'short' })
       .toUpperCase();
     const portfolioReturn = ((curr.unit_value - prev.unit_value) / prev.unit_value) * 100;
-    // Find nearest FTSE value for this month
-    const ym = curr.valuation_date.slice(0, 7); // "YYYY-MM"
-    const ftseReturn = ftseMap.get(ym) ?? 0;
-    results.push({ month, portfolioReturn, ftseReturn });
+    const ym = curr.valuation_date.slice(0, 7);
+    results.push({
+      month,
+      portfolioReturn,
+      ftse100Return: ftse100Map.get(ym) ?? 0,
+      ftse250Return: ftse250Map.get(ym) ?? 0,
+    });
   }
   return results;
 }
@@ -186,7 +208,7 @@ export default function PortfolioPerformancePage() {
   const [dividends,       setDividends]       = useState<Dividend[]>([]);
   const [monthlyPerfMap,  setMonthlyPerfMap]  = useState<Record<string, number>>({});
   const [monthlyTableData,setMonthlyTableData]= useState<MonthlyReturn[]>([]);
-  const [monthlyView,     setMonthlyView]     = useState<'portfolio' | 'ftse'>('portfolio');
+  const [monthlyView,     setMonthlyView]     = useState<'portfolio' | 'ftse100' | 'ftse250'>('portfolio');
   const [loading,         setLoading]         = useState(true);
   const [monthlyLoading,  setMonthlyLoading]  = useState(true);
   const [error,           setError]           = useState<string | null>(null);
@@ -214,34 +236,19 @@ export default function PortfolioPerformancePage() {
         .select('valuation_date, unit_value')
         .order('valuation_date', { ascending: true });
 
-      // Fetch FTSE 100 monthly data for comparison
-      // Fetch FTSE 100 monthly data for comparison
-        // Fetch FTSE 100 monthly data for comparison
-        let ftseMap = new Map<string, number>();
-        try {
-        const ftseData = await fetchFTSE100Data();
-        // Group daily prices by YYYY-MM, take first and last value of each month
-        const monthMap = new Map<string, { first: number; last: number }>();
-        for (const point of ftseData) {
-            const ym = point.date.slice(0, 7); // "YYYY-MM"
-            const existing = monthMap.get(ym);
-            if (!existing) {
-            monthMap.set(ym, { first: point.value, last: point.value });
-            } else {
-            existing.last = point.value;
-            }
-        }
-        // Calculate monthly % change for each YYYY-MM
-        const months = Array.from(monthMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-        for (let i = 1; i < months.length; i++) {
-            const [ym, { last }] = months[i];
-            const prevLast = months[i - 1][1].last;
-            const change = ((last - prevLast) / prevLast) * 100;
-            ftseMap.set(ym, change);
-        }
-        } catch { /* FTSE optional */ }
+      // Fetch FTSE 100 + 250 from the shared benchmarks endpoint (one Yahoo Finance call)
+      let ftse100Map = new Map<string, number>();
+      let ftse250Map = new Map<string, number>();
+      try {
+        const twoYearsAgo = new Date();
+        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+        const fromDate = twoYearsAgo.toISOString().split('T')[0];
+        const ftseData = await fetchFTSEData(fromDate);
+        ftse100Map = buildFtseMonthlyMap(ftseData.ftse100);
+        ftse250Map = buildFtseMonthlyMap(ftseData.ftse250);
+      } catch { /* FTSE optional */ }
 
-      setMonthlyTableData(buildMonthlyReturns(uvData || [], ftseMap));
+      setMonthlyTableData(buildMonthlyReturns(uvData || [], ftse100Map, ftse250Map));
     } catch (err) {
       console.error(err);
       setError('Failed to load data. Please try again.');
@@ -449,14 +456,16 @@ export default function PortfolioPerformancePage() {
           <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
             <h2 className="text-white font-semibold">Monthly Returns</h2>
             <div className="flex gap-2">
-              {(['portfolio', 'ftse'] as const).map(v => (
-                <button key={v} onClick={() => setMonthlyView(v)}
+              {([
+                { key: 'portfolio', label: 'Portfolio', activeClass: 'bg-emerald-600 text-white' },
+                { key: 'ftse100',   label: 'FTSE 100',  activeClass: 'bg-blue-600 text-white' },
+                { key: 'ftse250',   label: 'FTSE 250',  activeClass: 'bg-amber-600 text-white' },
+              ] as const).map(({ key, label, activeClass }) => (
+                <button key={key} onClick={() => setMonthlyView(key)}
                   className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                    monthlyView === v
-                      ? v === 'portfolio' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    monthlyView === key ? activeClass : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                   }`}>
-                  {v === 'portfolio' ? 'Portfolio' : 'FTSE 100'}
+                  {label}
                 </button>
               ))}
             </div>
@@ -468,7 +477,7 @@ export default function PortfolioPerformancePage() {
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 {monthsToShow.map((m, idx) => {
-                  const val = monthlyView === 'portfolio' ? m.portfolioReturn : m.ftseReturn;
+                  const val = monthlyView === 'portfolio' ? m.portfolioReturn : monthlyView === 'ftse100' ? m.ftse100Return : m.ftse250Return;
                   const pos = val >= 0;
                   return (
                     <div key={idx} className={`rounded-lg p-3 ${pos
@@ -485,7 +494,7 @@ export default function PortfolioPerformancePage() {
 
               {(() => {
                 const vals = monthsToShow.map(m =>
-                  monthlyView === 'portfolio' ? m.portfolioReturn : m.ftseReturn);
+                  monthlyView === 'portfolio' ? m.portfolioReturn : monthlyView === 'ftse100' ? m.ftse100Return : m.ftse250Return);
                 const best   = Math.max(...vals);
                 const worst  = Math.min(...vals);
                 const bestM  = monthsToShow[vals.indexOf(best)];

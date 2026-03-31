@@ -70,16 +70,22 @@ export async function syncUnitValues(): Promise<{
 // ── Benchmark data ────────────────────────────────────────────────────────────
 
 /**
- * Fetch rebased FTSE 100 + FTSE 250 data.
- * Pass the earliest valuation date so the API can align the rebase point.
+ * Fetch rebased FTSE 100 + FTSE 250 data for the exact portfolio valuation dates.
+ * Passing all dates lets the API return closes for those specific days rather than
+ * relying on monthly interval timestamps (which don't align with end-of-month dates).
+ * `cache: 'force-cache'` means the browser won't re-fetch within the same session.
  */
-export async function fetchBenchmarkData(fromDate?: string): Promise<BenchmarkData> {
+export async function fetchBenchmarkData(fromDate?: string, dates?: string[]): Promise<BenchmarkData> {
   try {
-    const url = fromDate
-      ? `/api/performance/benchmarks?from=${fromDate}`
-      : '/api/performance/benchmarks';
+    const params = new URLSearchParams();
+    if (dates?.length) {
+      params.set('dates', dates.join(','));
+    } else if (fromDate) {
+      params.set('from', fromDate);
+    }
 
-    const res = await fetch(url);
+    const url = `/api/performance/benchmarks${params.size ? '?' + params.toString() : ''}`;
+    const res = await fetch(url, { cache: 'force-cache' });
     if (!res.ok) throw new Error(`Benchmarks request failed: ${res.status}`);
     return await res.json();
   } catch (err) {

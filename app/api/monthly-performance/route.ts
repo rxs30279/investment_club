@@ -54,7 +54,12 @@ export async function POST(request: Request) {
       })
     );
 
-    return NextResponse.json(results);
+    return NextResponse.json(results, {
+      headers: {
+        // Cache for 1 hour — monthly change data is stable within the trading day
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=600',
+      },
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

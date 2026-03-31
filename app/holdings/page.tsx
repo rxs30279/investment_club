@@ -248,20 +248,23 @@ export default function HoldingsPage() {
       const calculated = calculatePortfolioSummary(positions);
       setPortfolio(calculated);
       
-      // Fetch 52-week ranges for each stock
+      // Fetch 52-week ranges for all holdings in one batch request
       const ranges: Record<string, { high: number; low: number }> = {};
-      for (const holding of calculated.holdings) {
+      const tickers = calculated.holdings.map((h: Position) => h.ticker).filter(Boolean);
+      if (tickers.length > 0) {
         try {
-          const response = await fetch('/api/fundamentals', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ticker: holding.ticker }),
-          });
+          const response = await fetch(`/api/fundamentals?tickers=${tickers.join(',')}`);
           const data = await response.json();
-          ranges[holding.ticker] = { high: data.high52Week || 0, low: data.low52Week || 0 };
-        } catch (err) {
-          console.error(`Error fetching range for ${holding.ticker}:`, err);
-          ranges[holding.ticker] = { high: holding.currentPrice * 1.3, low: holding.currentPrice * 0.7 };
+          for (const holding of calculated.holdings) {
+            const d = data[holding.ticker];
+            ranges[holding.ticker] = d?.high52Week
+              ? { high: d.high52Week, low: d.low52Week }
+              : { high: holding.currentPrice * 1.3, low: holding.currentPrice * 0.7 };
+          }
+        } catch {
+          for (const holding of calculated.holdings) {
+            ranges[holding.ticker] = { high: holding.currentPrice * 1.3, low: holding.currentPrice * 0.7 };
+          }
         }
       }
       setStockRanges(ranges);

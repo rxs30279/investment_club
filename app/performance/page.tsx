@@ -55,34 +55,9 @@ function mergeChartData(
     map.set(p.date, { date: p.date, label: formatDate(p.date), portfolio: p.value });
   });
 
-  ftse100.forEach(p => {
-    const existing = map.get(p.date);
-    if (existing) existing.ftse100 = p.value;
-    else {
-      // Find closest portfolio date for alignment
-      const closest = portfolio.reduce((prev, curr) =>
-        Math.abs(new Date(curr.date).getTime() - new Date(p.date).getTime()) <
-        Math.abs(new Date(prev.date).getTime() - new Date(p.date).getTime())
-          ? curr : prev
-      );
-      const entry = map.get(closest.date);
-      if (entry) entry.ftse100 = p.value;
-    }
-  });
-
-  ftse250.forEach(p => {
-    const existing = map.get(p.date);
-    if (existing) existing.ftse250 = p.value;
-    else {
-      const closest = portfolio.reduce((prev, curr) =>
-        Math.abs(new Date(curr.date).getTime() - new Date(p.date).getTime()) <
-        Math.abs(new Date(prev.date).getTime() - new Date(p.date).getTime())
-          ? curr : prev
-      );
-      const entry = map.get(closest.date);
-      if (entry) entry.ftse250 = p.value;
-    }
-  });
+  // API now returns data keyed to the exact portfolio dates, so exact lookup always works
+  ftse100.forEach(p => { const e = map.get(p.date); if (e) e.ftse100 = p.value; });
+  ftse250.forEach(p => { const e = map.get(p.date); if (e) e.ftse250 = p.value; });
 
   return Array.from(map.values()).sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -204,9 +179,10 @@ export default function PerformancePage() {
         setChartData(mergeChartData(rebasedPortfolio, [], []));
         setLoading(false);
 
-        // Fetch benchmarks in background
+        // Fetch benchmarks in background — pass exact dates so Yahoo daily closes align perfectly
         const fromDate = uvs[0].valuation_date;
-        const benchmarks = await fetchBenchmarkData(fromDate);
+        const allDates = uvs.map(uv => uv.valuation_date);
+        const benchmarks = await fetchBenchmarkData(fromDate, allDates);
         setChartData(mergeChartData(rebasedPortfolio, benchmarks.ftse100, benchmarks.ftse250));
         setBenchmarkLoading(false);
       } catch (err) {

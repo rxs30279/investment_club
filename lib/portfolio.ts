@@ -184,25 +184,19 @@ export function calculatePortfolioSummary(positions: Position[]): PortfolioSumma
 }
 
 // ==================== FTSE DATA ====================
-export async function fetchFTSE100Data(): Promise<{ date: string; value: number }[]> {
+// Fetches daily FTSE 100 and FTSE 250 data from the shared benchmarks endpoint.
+// Using one call for both indices avoids duplicate Yahoo Finance requests.
+export async function fetchFTSEData(fromDate: string): Promise<{
+  ftse100: { date: string; value: number }[];
+  ftse250: { date: string; value: number }[];
+}> {
   try {
-    const res = await fetch('/api/ftse100');
-    if (!res.ok) throw new Error('Failed to fetch FTSE100');
+    const res = await fetch(`/api/performance/benchmarks?from=${fromDate}`, { cache: 'force-cache' });
+    if (!res.ok) throw new Error('Failed to fetch FTSE data');
     return await res.json();
   } catch (err) {
-    console.error('Failed to fetch FTSE100:', err);
-    return [];
-  }
-}
-
-export async function fetchFTSE250Data(): Promise<{ date: string; value: number }[]> {
-  try {
-    const res = await fetch('/api/ftse250');
-    if (!res.ok) throw new Error('Failed to fetch FTSE250');
-    return await res.json();
-  } catch (err) {
-    console.error('Failed to fetch FTSE250:', err);
-    return [];
+    console.error('Failed to fetch FTSE data:', err);
+    return { ftse100: [], ftse250: [] };
   }
 }
 

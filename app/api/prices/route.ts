@@ -26,41 +26,38 @@ export async function GET() {
     // Remove duplicates
     const uniqueTickers = [...new Set(tickers)];
     
-    console.log(`Fetching prices for ${uniqueTickers.length} tickers:`, uniqueTickers);
-    
-    const prices: Record<string, number> = {};
-    
-    for (const ticker of uniqueTickers) {
-      try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'application/json',
-          },
-        });
-        
-        if (!response.ok) {
-          console.warn(`Failed to fetch ${ticker}: ${response.status}`);
-          prices[ticker] = 0;
-          continue;
+    const entries = await Promise.all(
+      uniqueTickers.map(async (ticker) => {
+        try {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
+          const response = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            console.warn(`Failed to fetch ${ticker}: ${response.status}`);
+            return [ticker, 0] as const;
+          }
+
+          const data = await response.json();
+          const price = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+          return [ticker, price ? price / 100 : 0] as const;
+        } catch (error) {
+          console.error(`Error fetching ${ticker}:`, error);
+          return [ticker, 0] as const;
         }
-        
-        const data = await response.json();
-        
-        if (data.chart?.result?.[0]?.meta?.regularMarketPrice) {
-          const priceInPence = data.chart.result[0].meta.regularMarketPrice;
-          prices[ticker] = priceInPence / 100;
-        } else {
-          prices[ticker] = 0;
-        }
-      } catch (error) {
-        console.error(`Error fetching ${ticker}:`, error);
-        prices[ticker] = 0;
-      }
-    }
-    
-    return NextResponse.json(prices);
+      })
+    );
+
+    return NextResponse.json(Object.fromEntries(entries), {
+      headers: {
+        // Cache for 1 hour — current prices don't need to be real-time for this dashboard
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=600',
+      },
+    });
   } catch (error) {
     console.error('Error in prices API:', error);
     return NextResponse.json(
