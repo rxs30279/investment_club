@@ -379,8 +379,8 @@ export default function HoldingsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">Holdings Analysis</h1>
-            <p className="text-sm text-gray-400 mt-1">Sector allocation and 52-week range analysis</p>
+            <h1 className="text-2xl font-bold text-white">52-Week Range</h1>
+            <p className="text-sm text-gray-400 mt-1">52-week range analysis</p>
           </div>
           <RefreshButton onRefresh={loadData} />
         </div>
@@ -409,10 +409,10 @@ export default function HoldingsPage() {
           <th className="px-4 py-3 text-xs font-medium text-gray-400">Company</th>
           <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Price</th>
           <th className="px-4 py-3 text-left min-w-[180px] text-xs font-medium text-gray-400">52-Week Range</th>
-          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Value</th>
-          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">P&L</th>
-          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Return</th>
-          <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Shares</th>
+          <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-medium text-gray-400">Value</th>
+          <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-medium text-gray-400">P&L</th>
+          <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-medium text-gray-400">Return</th>
+          <th className="hidden sm:table-cell px-4 py-3 text-right text-xs font-medium text-gray-400">Shares</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-800">
@@ -441,16 +441,16 @@ export default function HoldingsPage() {
                   high={range.high} 
                 />
               </td>
-              <td className="px-4 py-3 text-right text-gray-300">
+              <td className="hidden sm:table-cell px-4 py-3 text-right text-gray-300">
                 £{holding.currentValue.toFixed(2)}
               </td>
-              <td className={`px-4 py-3 text-right font-medium ${holding.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <td className={`hidden sm:table-cell px-4 py-3 text-right font-medium ${holding.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {holding.pnl >= 0 ? '+' : ''}{formatCurrency(holding.pnl)}
               </td>
-              <td className={`px-4 py-3 text-right font-medium ${holding.pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <td className={`hidden sm:table-cell px-4 py-3 text-right font-medium ${holding.pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {holding.pnlPercent >= 0 ? '+' : ''}{holding.pnlPercent.toFixed(2)}%
               </td>
-              <td className="px-4 py-3 text-right text-gray-300">
+              <td className="hidden sm:table-cell px-4 py-3 text-right text-gray-300">
                 {holding.shares.toLocaleString()}
               </td>
             </tr>

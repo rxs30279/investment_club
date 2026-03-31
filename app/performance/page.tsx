@@ -161,6 +161,7 @@ export default function PerformancePage() {
 
   // Chart mode: rebased (all start at 100) or raw unit value
   const [chartMode, setChartMode]         = useState<'rebased' | 'raw'>('rebased');
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -205,6 +206,23 @@ export default function PerformancePage() {
   const displayData = chartMode === 'rebased' ? chartData : rawChartData;
   const summary     = calcPerformanceSummary(unitValues);
 
+  // 12-month return: find the unit value from ~12 months before the latest valuation
+  const twelveMonthReturn = (() => {
+    if (unitValues.length < 2) return null;
+    const sorted = [...unitValues].sort(
+      (a, b) => new Date(a.valuation_date).getTime() - new Date(b.valuation_date).getTime()
+    );
+    const latest     = sorted[sorted.length - 1];
+    const cutoff     = new Date(latest.valuation_date);
+    cutoff.setFullYear(cutoff.getFullYear() - 1);
+    // Find the closest point at or just before the 12-month cutoff
+    const base = sorted
+      .filter(uv => new Date(uv.valuation_date) <= cutoff)
+      .at(-1);
+    if (!base) return null;
+    return ((latest.unit_value - base.unit_value) / base.unit_value) * 100;
+  })();
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -244,7 +262,7 @@ export default function PerformancePage() {
         <div className="mb-6">
           <h1 className="text-xl sm:text-2xl font-bold text-white">Unit Value Performance</h1>
           <p className="text-xs sm:text-sm text-gray-400 mt-1">
-            Unit value progression since inception · {unitValues.length} monthly valuations
+            Unit value progression
           </p>
         </div>
 
@@ -258,23 +276,27 @@ export default function PerformancePage() {
               accent="neutral"
             />
             <StatCard
-              label="Total Return"
-              value={fmtPct(summary.totalReturnPercent)}
-              sub={`Over ${summary.monthCount} months`}
-              accent={summary.totalReturnPercent >= 0 ? 'green' : 'red'}
+              label="12-Month Return"
+              value={twelveMonthReturn != null ? fmtPct(twelveMonthReturn) : '—'}
+              sub="Last 12 months"
+              accent={twelveMonthReturn != null ? (twelveMonthReturn >= 0 ? 'green' : 'red') : 'neutral'}
             />
-            <StatCard
-              label="Best Month"
-              value={summary.bestMonth ? fmtPct(summary.bestMonth.change) : '—'}
-              sub={summary.bestMonth ? formatDateLong(summary.bestMonth.date) : undefined}
-              accent="green"
-            />
-            <StatCard
-              label="Worst Month"
-              value={summary.worstMonth ? fmtPct(summary.worstMonth.change) : '—'}
-              sub={summary.worstMonth ? formatDateLong(summary.worstMonth.date) : undefined}
-              accent="red"
-            />
+            <div className="hidden sm:block">
+              <StatCard
+                label="Best Month"
+                value={summary.bestMonth ? fmtPct(summary.bestMonth.change) : '—'}
+                sub={summary.bestMonth ? formatDateLong(summary.bestMonth.date) : undefined}
+                accent="green"
+              />
+            </div>
+            <div className="hidden sm:block">
+              <StatCard
+                label="Worst Month"
+                value={summary.worstMonth ? fmtPct(summary.worstMonth.change) : '—'}
+                sub={summary.worstMonth ? formatDateLong(summary.worstMonth.date) : undefined}
+                accent="red"
+              />
+            </div>
           </div>
         )}
 
@@ -402,10 +424,23 @@ export default function PerformancePage() {
         {/* Monthly breakdown table */}
         {unitValues.length > 0 && (
           <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-800">
+            <button
+              onClick={() => setBreakdownOpen(o => !o)}
+              className="w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between hover:bg-gray-800/40 transition-colors"
+            >
               <h2 className="text-white font-semibold text-sm sm:text-base">Monthly Breakdown</h2>
-            </div>
-            <div className="overflow-x-auto">
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium
+                ${breakdownOpen
+                  ? 'border-gray-600 bg-gray-700 text-white'
+                  : 'border-emerald-700 bg-emerald-900/40 text-emerald-400'}`}>
+                {breakdownOpen ? 'Collapse' : 'Expand'}
+                <svg className={`w-4 h-4 transition-transform duration-200 ${breakdownOpen ? 'rotate-180' : ''}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </button>
+            {breakdownOpen && <div className="overflow-x-auto border-t border-gray-800">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-800">
@@ -456,7 +491,7 @@ export default function PerformancePage() {
                     })}
                 </tbody>
               </table>
-            </div>
+            </div>}
           </div>
         )}
 

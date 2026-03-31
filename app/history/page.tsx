@@ -289,46 +289,19 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">2 Jan 2026 Value</p>
-            <p className="text-2xl font-bold text-white mt-1">{formatCurrency(soy.totalValue)}</p>
-            <p className="text-xs text-gray-500 mt-1">{soy.holdings.length} holdings · start of year</p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Current Value</p>
-            <p className="text-2xl font-bold text-white mt-1">{formatCurrency(cur.totalValue)}</p>
-            <p className="text-xs text-gray-500 mt-1">{cur.holdings.length} holdings · live prices</p>
-          </div>
-
-          <div className={`bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border transition-all
-            ${isPositive
-              ? 'border-emerald-700/50 hover:border-emerald-600/50'
-              : 'border-red-700/50 hover:border-red-600/50'}`}
-          >
-            <p className="text-xs text-gray-400 uppercase tracking-wide">YTD Change</p>
-            <p className={`text-2xl font-bold mt-1 ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-              {isPositive ? '+' : ''}{formatCurrency(ytdChange)}
-            </p>
-            <p className={`text-xs mt-1 ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-              {formatPercent(ytdChangePct)}
-            </p>
-          </div>
-        </div>
 
         {/* Holdings table — always visible */}
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden backdrop-blur-sm">
 
           <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <span>📊</span> Holdings Breakdown
+              <h2 className="text-lg font-semibold text-white">
+                Holdings History
               </h2>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="hidden sm:block text-xs text-gray-500 mt-1">
                 Comparing positions on 2 Jan 2026 vs today
               </p>
+              <p className="sm:hidden text-xs text-gray-500 mt-0.5">Ordered by purchase date</p>
             </div>
             {/* Legend */}
             <div className="flex items-center gap-3 text-xs">
@@ -349,13 +322,12 @@ export default function HistoryPage() {
               <thead>
                 <tr className="border-b border-gray-800 bg-gray-900/80">
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ticker</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">First Purchased</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">2 Jan Value</th>
+                  <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
+                  <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">2 Jan Value</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current Value</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">YTD Change</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">YTD %</th>
+                  <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">YTD Change</th>
+                  <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">YTD %</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
@@ -398,18 +370,6 @@ export default function HistoryPage() {
                         </div>
                       </td>
 
-                      {/* Ticker */}
-                      <td className="px-6 py-4">
-                        <a
-                          href={`https://uk.finance.yahoo.com/quote/${item.ticker}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-400 hover:text-emerald-300 font-mono text-xs hover:underline transition-colors"
-                        >
-                          {item.ticker}
-                        </a>
-                      </td>
-
                       {/* First purchased */}
                       <td className="px-6 py-4 text-gray-400 text-xs">
                         {item.firstPurchaseDate
@@ -418,7 +378,7 @@ export default function HistoryPage() {
                       </td>
 
                       {/* Shares */}
-                      <td className="px-6 py-4 text-right font-mono text-xs text-gray-300">
+                      <td className="hidden sm:table-cell px-6 py-4 text-right font-mono text-xs text-gray-300">
                         {item.isClosed ? (
                           <span className="text-gray-500">{item.soyShares.toFixed(2)} → 0</span>
                         ) : item.isNew ? (
@@ -433,7 +393,7 @@ export default function HistoryPage() {
                       </td>
 
                       {/* 2 Jan value */}
-                      <td className="px-6 py-4 text-right text-gray-400">
+                      <td className="hidden sm:table-cell px-6 py-4 text-right text-gray-400">
                         {item.soyValue > 0 ? formatCurrency(item.soyValue) : '—'}
                       </td>
 
@@ -443,12 +403,12 @@ export default function HistoryPage() {
                       </td>
 
                       {/* YTD £ */}
-                      <td className={`px-6 py-4 text-right font-medium ${changeColor}`}>
+                      <td className={`hidden sm:table-cell px-6 py-4 text-right font-medium ${changeColor}`}>
                         {item.isNew ? '—' : `${item.valueChange >= 0 ? '+' : ''}${formatCurrency(item.valueChange)}`}
                       </td>
 
                       {/* YTD % */}
-                      <td className={`px-6 py-4 text-right font-medium ${changeColor}`}>
+                      <td className={`hidden sm:table-cell px-6 py-4 text-right font-medium ${changeColor}`}>
                         {item.isNew ? '—' : formatPercent(item.valueChangePct)}
                       </td>
                     </tr>
@@ -459,19 +419,20 @@ export default function HistoryPage() {
               {/* Totals row */}
               <tfoot className="bg-gray-900 border-t border-gray-700">
                 <tr>
-                  <td colSpan={4} className="px-6 py-4 text-right font-semibold text-gray-300">
+                  <td colSpan={2} className="px-6 py-4 text-right font-semibold text-gray-300">
                     Total Portfolio
                   </td>
-                  <td className="px-6 py-4 text-right font-bold text-gray-300">
+                  <td className="hidden sm:table-cell" />
+                  <td className="hidden sm:table-cell px-6 py-4 text-right font-bold text-gray-300">
                     {formatCurrency(soy.totalValue)}
                   </td>
                   <td className="px-6 py-4 text-right font-bold text-white">
                     {formatCurrency(cur.totalValue)}
                   </td>
-                  <td className={`px-6 py-4 text-right font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <td className={`hidden sm:table-cell px-6 py-4 text-right font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
                     {isPositive ? '+' : ''}{formatCurrency(ytdChange)}
                   </td>
-                  <td className={`px-6 py-4 text-right font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <td className={`hidden sm:table-cell px-6 py-4 text-right font-bold ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
                     {formatPercent(ytdChangePct)}
                   </td>
                 </tr>

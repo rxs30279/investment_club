@@ -56,8 +56,8 @@ const PieChart = ({ data }: { data: { sector: string; value: number; color: stri
   );
 
   return (
-    <div className="flex flex-col md:flex-row items-center gap-8">
-      <svg width="220" height="220" viewBox="0 0 220 220" className="flex-shrink-0">
+    <div className="flex flex-col items-center gap-6 md:flex-row md:items-center md:gap-8">
+      <svg viewBox="0 0 220 220" className="w-full max-w-[300px] mx-auto md:flex-1 md:max-w-none flex-shrink-0">
         {segments.map((seg, idx) => (
           <path key={idx} d={seg.path} fill={seg.color} stroke="#1f2937" strokeWidth="1.5"
             className="transition-opacity hover:opacity-80 cursor-pointer">
@@ -69,7 +69,7 @@ const PieChart = ({ data }: { data: { sector: string; value: number; color: stri
           {data.length} Sectors
         </text>
       </svg>
-      <div className="flex-1 grid grid-cols-2 gap-3">
+      <div className="w-full md:w-40 grid grid-cols-2 md:grid-cols-1 gap-3">
         {segments.map((seg, idx) => (
           <div key={idx} className="flex items-center gap-2 p-2 bg-gray-800/30 rounded-lg">
             <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }} />
@@ -284,12 +284,12 @@ export default function OverviewPage() {
             <p className="text-2xl font-bold text-white mt-1">{formatCurrency(portfolio.totalValue)}</p>
             <p className="text-xs text-gray-500 mt-1">{portfolio.holdingCount} holdings</p>
           </div>
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
+          <div className="hidden sm:block bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
             <p className="text-xs text-gray-400 uppercase tracking-wide">Cost Basis</p>
             <p className="text-2xl font-bold text-white mt-1">{formatCurrency(portfolio.totalCost)}</p>
             <p className="text-xs text-gray-500 mt-1">incl. estimated fees</p>
           </div>
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
+          <div className="hidden sm:block bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
             <p className="text-xs text-gray-400 uppercase tracking-wide">Overall Gain / Loss</p>
             <p className={`text-2xl font-bold mt-1 ${portfolio.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {portfolio.totalPnl >= 0 ? formatCurrency(portfolio.totalPnl) : `-${formatCurrency(Math.abs(portfolio.totalPnl))}`}
@@ -298,7 +298,7 @@ export default function OverviewPage() {
               {formatPercent(portfolio.totalPnlPercent)}
             </p>
           </div>
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
+          <div className="hidden sm:block bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
             <p className="text-xs text-gray-400 uppercase tracking-wide">Best Performer</p>
             {quickStats?.bestPerformer ? (
               <>
@@ -311,17 +311,17 @@ export default function OverviewPage() {
           </div>
         </div>
 
-        {/* Sector allocation + Portfolio weighting */}
+        {/* Portfolio weighting + Sector allocation */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6">
+            <WeightingHeatMap holdings={portfolio.holdings} totalValue={portfolio.totalValue} />
+          </div>
           <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6">
             <h2 className="text-white font-semibold mb-4">Sector Allocation</h2>
             {pieData.length > 0
               ? <PieChart data={pieData} />
               : <div className="text-center text-gray-400 py-8">No sector data available</div>
             }
-          </div>
-          <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6">
-            <WeightingHeatMap holdings={portfolio.holdings} totalValue={portfolio.totalValue} />
           </div>
         </div>
 

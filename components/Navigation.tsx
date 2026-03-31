@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const navItems = [
-  { href: '/', label: 'Overview', icon: '📊' },
-  { href: '/history', label: 'History', icon: '📈' },
-  { href: '/holdings', label: 'Holdings', icon: '📋' },
-  { href: '/performance', label: 'Unit Performance', icon: '📊' },
-  { href: '/portfolio-performance', label: 'Stock Performance', icon: '📈' },
-  { href: '/minutes', label: 'Minutes', icon: '📝' },
-  { href: '/treasurer', label: 'Treasurer', icon: '💰' },
+  { href: '/', label: 'Home', icon: null },
+  { href: '/performance', label: 'Unit Performance', icon: null },
+  { href: '/portfolio-performance', label: 'Stock Performance', icon: null },
+  { href: '/holdings', label: '52-Week', icon: null },
+  { href: '/history', label: 'History', icon: null },
+  { href: '/minutes', label: 'Minutes', icon: null },
+  { href: '/treasurer', label: 'Treasurer', icon: null },
+  { href: '/portfolio-fees', label: 'Fees & Divs', icon: null },
   { href: '/manage', label: 'Manage', icon: '⚙️' },
 ];
 
@@ -31,13 +32,13 @@ export default function Navigation() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`py-4 px-2 inline-flex items-center gap-1.5 border-b-2 text-xs font-medium transition-colors whitespace-nowrap ${
+                className={`py-4 px-2 inline-flex items-center gap-1.5 border-b-2 text-base font-medium transition-colors whitespace-nowrap ${
                   isActive
                     ? 'border-emerald-500 text-emerald-400'
                     : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
                 }`}
               >
-                <span>{item.icon}</span>
+                {item.icon && <span>{item.icon}</span>}
                 {item.label}
               </Link>
             );
