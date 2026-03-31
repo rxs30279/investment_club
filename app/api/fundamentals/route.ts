@@ -21,10 +21,15 @@ async function fetch52WeekRange(ticker: string) {
   }
 
   const closes = (result.indicators?.quote?.[0]?.close ?? []).filter((c: number | null) => c != null);
+
+  // UK stocks (.L suffix) are quoted in pence on Yahoo Finance — divide by 100 to get pounds
+  const isPence = ticker.toUpperCase().endsWith('.L');
+  const scale = isPence ? 100 : 1;
+
   return {
-    high52Week:   closes.length ? Math.max(...closes) : 0,
-    low52Week:    closes.length ? Math.min(...closes) : 0,
-    currentPrice: result.meta?.regularMarketPrice ?? 0,
+    high52Week:   closes.length ? Math.max(...closes) / scale : 0,
+    low52Week:    closes.length ? Math.min(...closes) / scale : 0,
+    currentPrice: (result.meta?.regularMarketPrice ?? 0) / scale,
   };
 }
 
