@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 const navItems = [
   { href: '/', label: 'Home', icon: null },
@@ -18,14 +18,21 @@ const navItems = [
 
 export default function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+    router.refresh();
+  };
 
   return (
     <nav className="bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Desktop nav — only shown on large screens */}
-        <div className="hidden lg:flex space-x-1">
+        <div className="hidden lg:flex items-center space-x-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -43,6 +50,12 @@ export default function Navigation() {
               </Link>
             );
           })}
+          <button
+            onClick={handleLogout}
+            className="ml-4 py-1.5 px-3 text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition-colors whitespace-nowrap"
+          >
+            Sign out
+          </button>
         </div>
 
         {/* Mobile nav bar — shown below lg breakpoint */}
@@ -106,6 +119,12 @@ export default function Navigation() {
                 </Link>
               );
             })}
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors"
+            >
+              Sign out
+            </button>
           </div>
         </div>
       )}

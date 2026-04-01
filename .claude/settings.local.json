@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node -e \"const c=require\\(''crypto''\\);console.log\\(c.randomBytes\\(32\\).toString\\(''hex''\\)\\)\")"
+    ]
+  }
+}

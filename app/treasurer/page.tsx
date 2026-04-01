@@ -23,60 +23,6 @@ const formatDate = (dateString: string): string => {
   });
 };
 
-// ── Inline admin password gate ────────────────────────────────────────────────
-// Shown as a small modal/prompt — does not protect the whole page,
-// only gates the sync action. Uses a separate admin password.
-
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? 'MESIadmin2026';
-const ADMIN_SESSION_KEY = 'mesi_admin_auth';
-
-function AdminGate({ onAuthenticated }: { onAuthenticated: () => void }) {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
-      setError(false);
-      onAuthenticated();
-    } else {
-      setError(true);
-      setPassword('');
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 max-w-sm w-full shadow-2xl">
-        <div className="text-center mb-5">
-          <div className="text-3xl mb-2">🔐</div>
-          <h3 className="text-white font-bold text-lg">Admin Access</h3>
-          <p className="text-gray-400 text-sm mt-1">Enter the admin password to sync performance data</p>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Admin password"
-            autoFocus
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 text-sm mb-3"
-          />
-          {error && (
-            <p className="text-red-400 text-xs mb-3">Incorrect password. Please try again.</p>
-          )}
-          <button
-            type="submit"
-            className="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            Confirm
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // ── Main page content (public) ────────────────────────────────────────────────
 
@@ -92,8 +38,6 @@ export default function TreasurerPage() {
   // Sync state
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [showAdminGate, setShowAdminGate] = useState(false);
-  const [isAdminAuthed, setIsAdminAuthed] = useState(false);
 
   const [newReport, setNewReport] = useState({
     title: '',
@@ -109,12 +53,6 @@ export default function TreasurerPage() {
     file: null as File | null,
   });
 
-  // Check if admin already authenticated this session
-  useEffect(() => {
-    if (sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true') {
-      setIsAdminAuthed(true);
-    }
-  }, []);
 
   const loadReports = useCallback(async () => {
   setLoading(true);
@@ -184,16 +122,6 @@ export default function TreasurerPage() {
   };
 
   const handleSyncClick = () => {
-    if (isAdminAuthed) {
-      runSync();
-    } else {
-      setShowAdminGate(true);
-    }
-  };
-
-  const handleAdminAuthenticated = () => {
-    setShowAdminGate(false);
-    setIsAdminAuthed(true);
     runSync();
   };
 
@@ -332,10 +260,6 @@ export default function TreasurerPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <Navigation />
 
-      {/* Admin password modal */}
-      {showAdminGate && (
-        <AdminGate onAuthenticated={handleAdminAuthenticated} />
-      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
 
