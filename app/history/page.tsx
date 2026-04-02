@@ -378,7 +378,7 @@ export default function HistoryPage() {
                       </td>
 
                       {/* Shares */}
-                      <td className="hidden sm:table-cell px-6 py-4 text-right font-mono text-xs text-gray-300">
+                      <td className="hidden sm:table-cell px-4 py-4 text-right font-mono text-xs text-gray-300 whitespace-nowrap">
                         {item.isClosed ? (
                           <span className="text-gray-500">{item.soyShares.toFixed(2)} → 0</span>
                         ) : item.isNew ? (

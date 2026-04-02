@@ -367,10 +367,10 @@ export default function OverviewPage() {
           </button>
 
           {holdingsOpen && (
-            <div className="overflow-x-auto border-t border-gray-800">
+            <div className="overflow-auto max-h-[70vh] border-t border-gray-800">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-800 bg-gray-900/80">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-gray-800 bg-gray-900">
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Company</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ticker</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>

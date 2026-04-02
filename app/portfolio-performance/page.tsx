@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Navigation from '@/components/Navigation';
 import Chart from 'chart.js/auto';
 import { HoldingWithPrice, Transaction, PortfolioSummary } from '@/types';
@@ -34,8 +34,8 @@ function firstPurchaseDates(transactions: Transaction[]): Map<number, string> {
 
 interface BarItem { label: string; value: number; subLabel?: string; }
 
-function HorizontalBarChart({ items, title, valueLabel, sub }: {
-  items: BarItem[]; title: string; valueLabel: string; sub?: string;
+function HorizontalBarChart({ items, title, valueLabel, sub, action }: {
+  items: BarItem[]; title: string; valueLabel: string; sub?: string; action?: React.ReactNode;
 }) {
   const chartRef      = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
@@ -86,6 +86,7 @@ function HorizontalBarChart({ items, title, valueLabel, sub }: {
           <h2 className="text-white font-semibold text-base">{title}</h2>
           {sub && <p className="text-gray-500 text-xs mt-0.5">{sub}</p>}
         </div>
+        {action && <div>{action}</div>}
         <div className="flex gap-3 text-xs flex-wrap">
           <span className="text-gray-400"><span className="text-emerald-400 font-medium">▲ {winners}</span> winners</span>
           <span className="text-gray-400"><span className="text-red-400 font-medium">▼ {losers}</span> losers</span>
@@ -123,6 +124,7 @@ export default function PortfolioPerformancePage() {
   const [portfolio,        setPortfolio]        = useState<PortfolioSummary | null>(null);
   const [transactions,     setTransactions]     = useState<Transaction[]>([]);
   const [monthlyPerfMap,   setMonthlyPerfMap]   = useState<Record<string, number>>({});
+  const [sincePurchaseSort, setSincePurchaseSort] = useState<'performance' | 'date'>('performance');
   const [loading,          setLoading]          = useState(true);
   const [monthlyLoading,   setMonthlyLoading]   = useState(true);
   const [error,            setError]            = useState<string | null>(null);
@@ -171,7 +173,10 @@ export default function PortfolioPerformancePage() {
   const purchaseDates = firstPurchaseDates(transactions);
 
   const sincePurchaseItems: BarItem[] = (portfolio?.holdings ?? [])
-    .sort((a, b) => b.pnlPercent - a.pnlPercent)
+    .slice()
+    .sort((a, b) => sincePurchaseSort === 'date'
+      ? (purchaseDates.get(b.holdingId) ?? '').localeCompare(purchaseDates.get(a.holdingId) ?? '')
+      : b.pnlPercent - a.pnlPercent)
     .map(h => ({
       label:    h.name.split(' ')[0],
       subLabel: purchaseDates.has(h.holdingId) ? fmtDate(purchaseDates.get(h.holdingId)!) : undefined,
@@ -230,6 +235,22 @@ export default function PortfolioPerformancePage() {
               items={sincePurchaseItems}
               title="Performance of Individual Stocks Since Purchase"
               valueLabel="Return since purchase (%)"
+              action={
+                <div className="flex rounded-lg border border-gray-700 overflow-hidden text-xs">
+                  <button
+                    onClick={() => setSincePurchaseSort('performance')}
+                    className={`px-3 py-1.5 transition-colors ${sincePurchaseSort === 'performance' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    Performance
+                  </button>
+                  <button
+                    onClick={() => setSincePurchaseSort('date')}
+                    className={`px-3 py-1.5 transition-colors ${sincePurchaseSort === 'date' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    Date
+                  </button>
+                </div>
+              }
             />
           </div>
         )}
