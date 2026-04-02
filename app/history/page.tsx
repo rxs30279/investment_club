@@ -274,7 +274,7 @@ export default function HistoryPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">History</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">History</h1>
             <p className="text-sm text-gray-400 mt-1">
               Year to date · 2 Jan 2026 → Today
             </p>
@@ -296,7 +296,7 @@ export default function HistoryPage() {
           <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between flex-wrap gap-3">
             <div>
               <h2 className="text-lg font-semibold text-white">
-                Holdings History
+                Holdings History Ordered By Date
               </h2>
               <p className="hidden sm:block text-xs text-gray-500 mt-1">
                 Comparing positions on 2 Jan 2026 vs today

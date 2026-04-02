@@ -35,7 +35,6 @@ export default function TreasurerPage() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync state
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -98,31 +97,31 @@ export default function TreasurerPage() {
 
   // ── Sync handler ─────────────────────────────────────────────────────────────
 
-  const runSync = async () => {
+  const handleSyncClick = async () => {
     setSyncing(true);
     setSyncResult(null);
     try {
-      const res = await fetch('/api/performance/sync', { method: 'POST' });
-      const data = await res.json();
-      if (data.errors?.length > 0) {
-        console.error('Sync errors:', data.errors);
-        setSyncResult({
-          ok: false,
-          message: `${data.processed} added, ${data.errors.length} file(s) failed — check console`,
-        });
-      } else {
-        setSyncResult({ ok: true, message: data.message });
-      }
+      const [perfRes, divsRes] = await Promise.all([
+        fetch('/api/performance/sync', { method: 'POST' }),
+        fetch('/api/performance/sync-dividends', { method: 'POST' }),
+      ]);
+      const [perf, divs] = await Promise.all([perfRes.json(), divsRes.json()]);
+
+      const perfMsg = perf.errors?.length > 0
+        ? `Performance: ${perf.processed} added, ${perf.errors.length} failed`
+        : `Performance: ${perf.message}`;
+      const divsMsg = divs.errors?.length > 0
+        ? `Dividends: ${divs.processed} added, ${divs.errors.length} issue(s)`
+        : `Dividends: ${divs.message}`;
+
+      const ok = !perf.errors?.length && !divs.errors?.length;
+      setSyncResult({ ok, message: `${perfMsg} · ${divsMsg}` });
     } catch (err) {
       console.error('Sync error:', err);
       setSyncResult({ ok: false, message: 'Sync failed — check console' });
     } finally {
       setSyncing(false);
     }
-  };
-
-  const handleSyncClick = () => {
-    runSync();
   };
 
   // ── File upload helpers ───────────────────────────────────────────────────────
@@ -288,7 +287,7 @@ export default function TreasurerPage() {
           </div>
         </div>
 
-        {/* Sync result banner */}
+        {/* Sync result banners */}
         {syncResult && (
           <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm flex items-center justify-between ${
             syncResult.ok

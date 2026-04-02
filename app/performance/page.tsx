@@ -206,6 +206,34 @@ export default function PerformancePage() {
   const displayData = chartMode === 'rebased' ? chartData : rawChartData;
   const summary     = calcPerformanceSummary(unitValues);
 
+  // Latest valuation month label
+  const latestUV = unitValues.length ? unitValues[unitValues.length - 1] : null;
+  const latestMonthLabel = latestUV
+    ? new Date(latestUV.valuation_date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+    : null;
+
+  // FTSE 12-month returns (using rebased chart data)
+  const ftse100Return = (() => {
+    const points = chartData.filter(p => p.ftse100 != null);
+    if (points.length < 2) return null;
+    const latest = points[points.length - 1];
+    const cutoff = new Date(latest.date);
+    cutoff.setFullYear(cutoff.getFullYear() - 1);
+    const base = points.filter(p => new Date(p.date) <= cutoff).at(-1);
+    if (!base) return null;
+    return ((latest.ftse100! - base.ftse100!) / base.ftse100!) * 100;
+  })();
+  const ftse250Return = (() => {
+    const points = chartData.filter(p => p.ftse250 != null);
+    if (points.length < 2) return null;
+    const latest = points[points.length - 1];
+    const cutoff = new Date(latest.date);
+    cutoff.setFullYear(cutoff.getFullYear() - 1);
+    const base = points.filter(p => new Date(p.date) <= cutoff).at(-1);
+    if (!base) return null;
+    return ((latest.ftse250! - base.ftse250!) / base.ftse250!) * 100;
+  })();
+
   // 12-month return: find the unit value from ~12 months before the latest valuation
   const twelveMonthReturn = (() => {
     if (unitValues.length < 2) return null;
@@ -260,9 +288,9 @@ export default function PerformancePage() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Unit Value Performance</h1>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">
-            Unit value progression
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Unit Value Performance</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            {latestMonthLabel ? `Valued ${latestMonthLabel}` : 'Unit value progression'}
           </p>
         </div>
 
@@ -271,30 +299,30 @@ export default function PerformancePage() {
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             <StatCard
               label="Current Unit Value"
-              value={`£${fmt4(summary.currentUnitValue)}`}
-              sub={`Started £${fmt4(summary.firstUnitValue)}`}
+              value={`£${fmt2(summary.currentUnitValue)}`}
+              sub={latestMonthLabel ?? undefined}
               accent="neutral"
             />
             <StatCard
-              label="12-Month Return"
+              label="Portfolio Return"
               value={twelveMonthReturn != null ? fmtPct(twelveMonthReturn) : '—'}
               sub="Last 12 months"
               accent={twelveMonthReturn != null ? (twelveMonthReturn >= 0 ? 'green' : 'red') : 'neutral'}
             />
             <div className="hidden sm:block">
               <StatCard
-                label="Best Month"
-                value={summary.bestMonth ? fmtPct(summary.bestMonth.change) : '—'}
-                sub={summary.bestMonth ? formatDateLong(summary.bestMonth.date) : undefined}
-                accent="green"
+                label="FTSE 100"
+                value={ftse100Return != null ? fmtPct(ftse100Return) : benchmarkLoading ? 'Loading…' : '—'}
+                sub="Last 12 months"
+                accent={ftse100Return != null ? (ftse100Return >= 0 ? 'green' : 'red') : 'neutral'}
               />
             </div>
             <div className="hidden sm:block">
               <StatCard
-                label="Worst Month"
-                value={summary.worstMonth ? fmtPct(summary.worstMonth.change) : '—'}
-                sub={summary.worstMonth ? formatDateLong(summary.worstMonth.date) : undefined}
-                accent="red"
+                label="FTSE 250"
+                value={ftse250Return != null ? fmtPct(ftse250Return) : benchmarkLoading ? 'Loading…' : '—'}
+                sub="Last 12 months"
+                accent={ftse250Return != null ? (ftse250Return >= 0 ? 'green' : 'red') : 'neutral'}
               />
             </div>
           </div>

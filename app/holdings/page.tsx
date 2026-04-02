@@ -332,12 +332,34 @@ export default function HoldingsPage() {
 
   // Prepare pie chart data
   const sectors = useMemo(() => ['All', ...new Set(portfolio?.holdings.map(h => h.sector) || [])], [portfolio]);
-  const filteredHoldings = useMemo(() => 
-    selectedSector === 'All' 
-      ? portfolio?.holdings 
-      : portfolio?.holdings.filter(h => h.sector === selectedSector),
-    [portfolio, selectedSector]
-  );
+
+  const getRangePos = (ticker: string, currentPrice: number) => {
+    let { low, high } = stockRanges[ticker] || { low: 0, high: 0 };
+    if (low > 100 || high > 100) { low /= 100; high /= 100; }
+    if (high === low) return 50;
+    return Math.min(100, Math.max(0, ((currentPrice - low) / (high - low)) * 100));
+  };
+
+  const groupedHoldings = useMemo(() => {
+    const holdings = selectedSector === 'All'
+      ? (portfolio?.holdings ?? [])
+      : (portfolio?.holdings ?? []).filter(h => h.sector === selectedSector);
+    const map = new Map<string, Position[]>();
+    for (const h of holdings) {
+      if (!map.has(h.sector)) map.set(h.sector, []);
+      map.get(h.sector)!.push(h);
+    }
+    // Sort holdings within each group by 52-week position descending
+    for (const [, group] of map) {
+      group.sort((a, b) => getRangePos(b.ticker, b.currentPrice) - getRangePos(a.ticker, a.currentPrice));
+    }
+    // Sort groups by their average 52-week position descending
+    return Array.from(map.entries()).sort(([, a], [, b]) => {
+      const avgA = a.reduce((s, h) => s + getRangePos(h.ticker, h.currentPrice), 0) / a.length;
+      const avgB = b.reduce((s, h) => s + getRangePos(h.ticker, h.currentPrice), 0) / b.length;
+      return avgB - avgA;
+    });
+  }, [portfolio, selectedSector, stockRanges]);
 
   const getRange = (ticker: string) => {
     return stockRanges[ticker] || { high: 0, low: 0 };
@@ -379,25 +401,28 @@ export default function HoldingsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">52-Week Range</h1>
-            <p className="text-sm text-gray-400 mt-1">52-week range analysis</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">How Our Stocks Sit in Their 52-Week Range</h1>
+            <p className="text-sm text-gray-400 mt-1">Stocks grouped by sector</p>
           </div>
           <RefreshButton onRefresh={loadData} />
         </div>
 
         {/* Sector Filter */}
         <div className="flex gap-2 mb-4 flex-wrap">
-          {sectors.map(sector => (
-            <button
-              key={sector}
-              onClick={() => setSelectedSector(sector)}
-              className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                selectedSector === sector ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              {sector} {sector !== 'All' && `(${portfolio.holdings.filter(h => h.sector === sector).length})`}
-            </button>
-          ))}
+          {sectors.map(sector => {
+            const color = sector === 'All' ? '#10b981' : (sectorColors[sector] ?? '#6b7280');
+            const isActive = selectedSector === sector;
+            return (
+              <button
+                key={sector}
+                onClick={() => setSelectedSector(sector)}
+                style={isActive ? { backgroundColor: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}
+                className={`px-4 py-1.5 text-sm rounded-full border transition-colors ${isActive ? '' : 'bg-transparent hover:opacity-80'}`}
+              >
+                {sector} {sector !== 'All' && `(${portfolio.holdings.filter(h => h.sector === sector).length})`}
+              </button>
+            );
+          })}
         </div>
 
         {/* Holdings Table */}
@@ -406,6 +431,7 @@ export default function HoldingsPage() {
     <table className="w-full text-sm">
       <thead className="bg-gray-900/80 border-b border-gray-800">
         <tr className="text-left">
+          <th className="w-1 p-0" />
           <th className="px-4 py-3 text-xs font-medium text-gray-400">Company</th>
           <th className="px-4 py-3 text-right text-xs font-medium text-gray-400">Price</th>
           <th className="px-4 py-3 text-left min-w-[180px] text-xs font-medium text-gray-400">52-Week Range</th>
@@ -416,45 +442,51 @@ export default function HoldingsPage() {
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-800">
-        {filteredHoldings?.map((holding) => {
-          const range = getRange(holding.ticker);
-          return (
-            <tr key={holding.holdingId} className="hover:bg-gray-800/50 transition-colors">
-              <td className="px-4 py-3">
-                <p className="text-white font-medium">{holding.name}</p>
-                <a 
-                  href={`https://uk.finance.yahoo.com/quote/${holding.ticker}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-emerald-400 text-xs hover:underline"
-                >
-                  {holding.ticker}
-                </a>
-              </td>
-              <td className="px-4 py-3 text-right text-gray-300 font-mono">
-                £{holding.currentPrice.toFixed(2)}
-              </td>
-              <td className="px-4 py-3">
-                <RangeBar 
-                  current={holding.currentPrice} 
-                  low={range.low} 
-                  high={range.high} 
-                />
-              </td>
-              <td className="hidden sm:table-cell px-4 py-3 text-right text-gray-300">
-                £{holding.currentValue.toFixed(2)}
-              </td>
-              <td className={`hidden sm:table-cell px-4 py-3 text-right font-medium ${holding.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {holding.pnl >= 0 ? '+' : ''}{formatCurrency(holding.pnl)}
-              </td>
-              <td className={`hidden sm:table-cell px-4 py-3 text-right font-medium ${holding.pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {holding.pnlPercent >= 0 ? '+' : ''}{holding.pnlPercent.toFixed(2)}%
-              </td>
-              <td className="hidden sm:table-cell px-4 py-3 text-right text-gray-300">
-                {holding.shares.toLocaleString()}
-              </td>
-            </tr>
-          );
+        {groupedHoldings.map(([sector, holdings]) => {
+          const color = sectorColors[sector] ?? '#6b7280';
+          return holdings.map((holding, idx) => {
+            const range = getRange(holding.ticker);
+            return (
+              <tr key={holding.holdingId} className="hover:bg-gray-800/50 transition-colors">
+                <td className="p-0 w-1">
+                  <div style={{ width: '4px', backgroundColor: color, height: '100%', minHeight: '52px' }} />
+                </td>
+                <td className="px-4 py-3">
+                  <p className="text-white font-medium">{holding.name}</p>
+                  <a
+                    href={`https://uk.finance.yahoo.com/quote/${holding.ticker}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs hover:underline"
+                    style={{ color }}
+                  >
+                    {holding.ticker}
+                  </a>
+                  {idx === 0 && (
+                    <p className="text-xs mt-0.5 font-medium" style={{ color }}>{sector}</p>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right text-gray-300 font-mono">
+                  £{holding.currentPrice.toFixed(2)}
+                </td>
+                <td className="px-4 py-3">
+                  <RangeBar current={holding.currentPrice} low={range.low} high={range.high} />
+                </td>
+                <td className="hidden sm:table-cell px-4 py-3 text-right text-gray-300">
+                  £{holding.currentValue.toFixed(2)}
+                </td>
+                <td className={`hidden sm:table-cell px-4 py-3 text-right font-medium ${holding.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {holding.pnl >= 0 ? '+' : ''}{formatCurrency(holding.pnl)}
+                </td>
+                <td className={`hidden sm:table-cell px-4 py-3 text-right font-medium ${holding.pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {holding.pnlPercent >= 0 ? '+' : ''}{holding.pnlPercent.toFixed(2)}%
+                </td>
+                <td className="hidden sm:table-cell px-4 py-3 text-right text-gray-300">
+                  {holding.shares.toLocaleString()}
+                </td>
+              </tr>
+            );
+          });
         })}
       </tbody>
     </table>

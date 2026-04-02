@@ -258,7 +258,7 @@ export default function OverviewPage() {
         {/* Header — always rendered immediately for LCP */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">MESI Investment Portfolio</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">MESI Investment Portfolio</h1>
             <p className="text-sm text-gray-400 mt-1">UK stocks · Live prices from Yahoo Finance</p>
           </div>
           <RefreshButton onRefresh={fetchData} />
@@ -302,7 +302,7 @@ export default function OverviewPage() {
           <div className="hidden sm:block bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
             <p className="text-xs text-gray-400 uppercase tracking-wide">Cost Basis</p>
             <p className="text-2xl font-bold text-white mt-1">{formatCurrency(portfolio.totalCost)}</p>
-            <p className="text-xs text-gray-500 mt-1">incl. estimated fees</p>
+            <p className="text-xs text-gray-500 mt-1">amount invested</p>
           </div>
           <div className="hidden sm:block bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-gray-600 transition-all">
             <p className="text-xs text-gray-400 uppercase tracking-wide">Overall Gain / Loss</p>

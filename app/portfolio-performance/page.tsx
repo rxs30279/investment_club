@@ -34,8 +34,8 @@ function firstPurchaseDates(transactions: Transaction[]): Map<number, string> {
 
 interface BarItem { label: string; value: number; subLabel?: string; }
 
-function HorizontalBarChart({ items, title, valueLabel }: {
-  items: BarItem[]; title: string; valueLabel: string;
+function HorizontalBarChart({ items, title, valueLabel, sub }: {
+  items: BarItem[]; title: string; valueLabel: string; sub?: string;
 }) {
   const chartRef      = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
@@ -82,7 +82,10 @@ function HorizontalBarChart({ items, title, valueLabel }: {
   return (
     <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4">
       <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-        <h2 className="text-white font-semibold text-base">{title}</h2>
+        <div>
+          <h2 className="text-white font-semibold text-base">{title}</h2>
+          {sub && <p className="text-gray-500 text-xs mt-0.5">{sub}</p>}
+        </div>
         <div className="flex gap-3 text-xs flex-wrap">
           <span className="text-gray-400"><span className="text-emerald-400 font-medium">▲ {winners}</span> winners</span>
           <span className="text-gray-400"><span className="text-red-400 font-medium">▼ {losers}</span> losers</span>
@@ -214,9 +217,9 @@ export default function PortfolioPerformancePage() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Stock Performance</h1>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">
-            Year-to-date · {new Date().getFullYear()}
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Stock Performance</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            Performance since purchase
           </p>
         </div>
 
@@ -225,7 +228,7 @@ export default function PortfolioPerformancePage() {
           <div className="mb-6">
             <HorizontalBarChart
               items={sincePurchaseItems}
-              title="Performance of Stock Since Purchase"
+              title="Performance of Individual Stocks Since Purchase"
               valueLabel="Return since purchase (%)"
             />
           </div>
@@ -243,8 +246,9 @@ export default function PortfolioPerformancePage() {
           ) : thisMonthItems.length > 0 ? (
             <HorizontalBarChart
               items={thisMonthItems}
-              title={`Performance of Stock This Month — ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
+              title={`Performance of Stocks This Month — ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
               valueLabel="Monthly change (%)"
+              sub={`Last ${new Date().getDate()} day${new Date().getDate() === 1 ? '' : 's'}`}
             />
           ) : (
             <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 text-center text-gray-500 text-sm">

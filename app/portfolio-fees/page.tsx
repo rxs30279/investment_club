@@ -169,8 +169,8 @@ export default function PortfolioFeesPage() {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Fees &amp; Divs</h1>
-          <p className="text-xs sm:text-sm text-gray-400 mt-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Fees &amp; Divs</h1>
+          <p className="text-sm text-gray-400 mt-1">
             Dividends &amp; running costs · {new Date().getFullYear()} · Resets each January
           </p>
         </div>
@@ -254,7 +254,10 @@ export default function PortfolioFeesPage() {
                 </tr>
               </thead>
               <tbody>
-                {[...dividends].reverse().map(div => (
+                {[...dividends]
+                  .filter(d => new Date(d.date) >= new Date(new Date().getFullYear(), 0, 1))
+                  .reverse()
+                  .map(div => (
                   <tr key={div.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
                     <td className="px-4 sm:px-6 py-3 text-gray-300">{div.date}</td>
                     <td className="px-4 sm:px-6 py-3 text-white">
@@ -268,18 +271,18 @@ export default function PortfolioFeesPage() {
                     </td>
                   </tr>
                 ))}
-                {dividends.length === 0 && (
+                {ytdDividends === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-gray-500 text-sm">
-                      No dividends recorded — click &quot;+ Add Dividend&quot; to start tracking.
+                      No dividends recorded for {new Date().getFullYear()} — click &quot;+ Add Dividend&quot; to start tracking.
                     </td>
                   </tr>
                 )}
               </tbody>
               <tfoot className="border-t border-gray-800">
                 <tr>
-                  <td colSpan={2} className="px-4 sm:px-6 py-3 text-right text-gray-400 text-sm font-medium">Total Dividends</td>
-                  <td className="px-4 sm:px-6 py-3 text-right font-bold text-emerald-400 font-mono">{fmtCurrency(totalDividends)}</td>
+                  <td colSpan={2} className="px-4 sm:px-6 py-3 text-right text-gray-400 text-sm font-medium">{new Date().getFullYear()} Total</td>
+                  <td className="px-4 sm:px-6 py-3 text-right font-bold text-emerald-400 font-mono">{fmtCurrency(ytdDividends)}</td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
