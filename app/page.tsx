@@ -29,12 +29,13 @@ const sectorColors: Record<string, string> = {
 
 // ── Pie chart ──────────────────────────────────────────────────────────────────
 
-const PieChart = ({ data }: { data: { sector: string; value: number; color: string }[] }) => {
+const PieChart = ({ data }: { data: { sector: string; value: number; color: string; holdings: string[] }[] }) => {
+  const [expanded, setExpanded] = useState<string | null>(null);
   const total = data.reduce((sum, item) => sum + item.value, 0);
   const center = 110;
   const radius = 100;
 
-  const segments = data.reduce<{ path: string; color: string; sector: string; value: number; percentage: number }[]>(
+  const segments = data.reduce<{ path: string; color: string; sector: string; value: number; percentage: number; holdings: string[] }[]>(
     (acc, item) => {
       const previousAngle = acc.reduce((sum, seg) => sum + (seg.value / total) * 360, 0);
       const angle = (item.value / total) * 360;
@@ -50,6 +51,7 @@ const PieChart = ({ data }: { data: { sector: string; value: number; color: stri
         sector: item.sector,
         value: item.value,
         percentage: (item.value / total) * 100,
+        holdings: item.holdings,
       });
       return acc;
     }, []
@@ -70,13 +72,29 @@ const PieChart = ({ data }: { data: { sector: string; value: number; color: stri
         </text>
       </svg>
       <div className="w-full md:w-40 grid grid-cols-2 md:grid-cols-1 gap-3">
-        {segments.map((seg, idx) => (
-          <div key={idx} className="flex items-center gap-2 p-2 bg-gray-800/30 rounded-lg">
-            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }} />
-            <span className="text-gray-300 text-sm flex-1">{seg.sector}</span>
-            <span className="text-white text-sm font-medium">{seg.percentage.toFixed(1)}%</span>
-          </div>
-        ))}
+        {segments.map((seg, idx) => {
+          const isOpen = expanded === seg.sector;
+          return (
+            <div key={idx}>
+              <button
+                onClick={() => setExpanded(isOpen ? null : seg.sector)}
+                className="w-full flex items-center gap-2 p-2 bg-gray-800/30 rounded-lg hover:bg-gray-800/50 transition-colors"
+              >
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }} />
+                <span className="text-gray-300 text-sm flex-1 text-left">{seg.sector}</span>
+                <span className="text-white text-sm font-medium">{seg.percentage.toFixed(1)}%</span>
+                <span className="text-gray-500 text-xs ml-1">{isOpen ? '▲' : '▼'}</span>
+              </button>
+              {isOpen && (
+                <div className="mt-1 ml-5 flex flex-col gap-0.5">
+                  {seg.holdings.map((name, i) => (
+                    <span key={i} className="text-gray-400 text-xs">{name}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -228,41 +246,16 @@ export default function OverviewPage() {
     });
     return Object.entries(allocation).map(([sector, value]) => ({
       sector, value, color: sectorColors[sector] || sectorColors.Other,
+      holdings: portfolio.holdings.filter(h => h.sector === sector).map(h => h.name),
     }));
   }, [portfolio]);
-
-  if (loading) return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <Navigation />
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto" />
-          <p className="mt-4 text-gray-400">Loading portfolio data...</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (error || !portfolio) return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      <Navigation />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-red-900/30 border border-red-700 rounded-xl p-6 text-center">
-          <p className="text-red-400">{error || 'Failed to load portfolio data'}</p>
-          <button onClick={fetchData} className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
-            Try Again
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <Navigation />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Header */}
+        {/* Header — always rendered immediately for LCP */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight">MESI Investment Portfolio</h1>
@@ -270,6 +263,28 @@ export default function OverviewPage() {
           </div>
           <RefreshButton onRefresh={fetchData} />
         </div>
+
+        {/* Error state */}
+        {error && (
+          <div className="bg-red-900/30 border border-red-700 rounded-xl p-6 text-center mb-8">
+            <p className="text-red-400">{error}</p>
+            <button onClick={fetchData} className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {loading && !error && (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto" />
+              <p className="mt-4 text-gray-400">Loading portfolio data...</p>
+            </div>
+          </div>
+        )}
+
+        {portfolio && (<>
 
         {lastUpdated && (
           <div className="text-right text-xs text-gray-500 mb-4">
@@ -407,6 +422,7 @@ export default function OverviewPage() {
           )}
         </div>
 
+        </>)}
       </div>
     </div>
   );

@@ -45,6 +45,8 @@ function HorizontalBarChart({ items, title, valueLabel }: {
     if (!chartRef.current || items.length === 0) return;
     chartInstance.current?.destroy();
     const colors = items.map(i => i.value >= 0 ? '#10b981' : '#ef4444');
+    const container = chartRef.current.parentElement;
+    if (container) chartRef.current.style.width = container.clientWidth + 'px';
     chartInstance.current = new Chart(chartRef.current, {
       type: 'bar',
       data: {
@@ -68,9 +70,10 @@ function HorizontalBarChart({ items, title, valueLabel }: {
           y: { grid: { display: false },
             ticks: { color: '#9ca3af', font: { size: 10 }, autoSkip: false } },
         },
-        layout: { padding: { left: 8, right: 20, top: 8, bottom: 8 } },
+        layout: { padding: { left: 4, right: 4, top: 8, bottom: 8 } },
       },
     });
+    requestAnimationFrame(() => chartInstance.current?.resize());
     return () => { chartInstance.current?.destroy(); };
   }, [items]);
 
@@ -90,8 +93,8 @@ function HorizontalBarChart({ items, title, valueLabel }: {
           {worst && <span className="text-gray-400">Worst: <span className="text-red-400 font-medium">{fmtPct(worst.value)}</span></span>}
         </div>
       </div>
-      <div style={{ height: `${height}px`, minHeight: '300px' }}>
-        <canvas ref={chartRef} style={{ width: '100%', height: '100%' }} />
+      <div style={{ position: 'relative', width: '100%', height: `${height}px`, minHeight: '300px' }}>
+        <canvas ref={chartRef} />
       </div>
     </div>
   );
