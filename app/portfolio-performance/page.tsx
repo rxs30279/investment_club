@@ -45,8 +45,6 @@ function HorizontalBarChart({ items, title, valueLabel }: {
     if (!chartRef.current || items.length === 0) return;
     chartInstance.current?.destroy();
     const colors = items.map(i => i.value >= 0 ? '#10b981' : '#ef4444');
-    const container = chartRef.current.parentElement;
-    if (container) chartRef.current.style.width = container.clientWidth + 'px';
     chartInstance.current = new Chart(chartRef.current, {
       type: 'bar',
       data: {
@@ -73,7 +71,6 @@ function HorizontalBarChart({ items, title, valueLabel }: {
         layout: { padding: { left: 4, right: 4, top: 8, bottom: 8 } },
       },
     });
-    requestAnimationFrame(() => chartInstance.current?.resize());
     return () => { chartInstance.current?.destroy(); };
   }, [items]);
 
@@ -173,7 +170,7 @@ export default function PortfolioPerformancePage() {
   const sincePurchaseItems: BarItem[] = (portfolio?.holdings ?? [])
     .sort((a, b) => b.pnlPercent - a.pnlPercent)
     .map(h => ({
-      label:    h.name.length > 22 ? h.name.slice(0, 20) + '…' : h.name,
+      label:    h.name.split(' ')[0],
       subLabel: purchaseDates.has(h.holdingId) ? fmtDate(purchaseDates.get(h.holdingId)!) : undefined,
       value:    h.pnlPercent,
     }));
@@ -181,7 +178,7 @@ export default function PortfolioPerformancePage() {
   const thisMonthItems: BarItem[] = (portfolio?.holdings ?? [])
     .filter(h => monthlyPerfMap[h.ticker] != null)
     .map(h => ({
-      label: h.name.length > 22 ? h.name.slice(0, 20) + '…' : h.name,
+      label: h.name.split(' ')[0],
       value: monthlyPerfMap[h.ticker],
     }))
     .sort((a, b) => b.value - a.value);
