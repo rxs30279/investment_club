@@ -269,16 +269,16 @@ const WeightingHeatMap = ({ holdings, totalValue }: { holdings: Position[]; tota
 
 // Color palette for sectors
 const sectorColors: Record<string, string> = {
-  Aerospace: '#4f46e5',
-  Industrials: '#06b6d4',
-  Materials: '#10b981',
-  Energy: '#f59e0b',
-  Technology: '#ef4444',
-  Financials: '#8b5cf6',
-  Consumer: '#ec489a',
-  Utilities: '#14b8a6',
-  Healthcare: '#f97316',
-  Other: '#6b7280',
+  Technology:  '#ef4444',  // red
+  Energy:      '#f97316',  // orange
+  Industrials: '#eab308',  // yellow
+  Utilities:   '#84cc16',  // lime
+  Materials:   '#22c55e',  // green
+  Healthcare:  '#14b8a6',  // teal
+  Aerospace:   '#3b82f6',  // blue
+  Financials:  '#a855f7',  // purple
+  Consumer:    '#ec4899',  // pink
+  Other:       '#94a3b8',  // slate
 };
 
 export default function HoldingsPage() {
