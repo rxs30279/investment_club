@@ -121,21 +121,27 @@ function StatCard({ label, value, sub, accent }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function PortfolioPerformancePage() {
-  const [portfolio,        setPortfolio]        = useState<PortfolioSummary | null>(null);
-  const [transactions,     setTransactions]     = useState<Transaction[]>([]);
-  const [monthlyPerfMap,   setMonthlyPerfMap]   = useState<Record<string, number>>({});
+  const [portfolio,         setPortfolio]         = useState<PortfolioSummary | null>(null);
+  const [transactions,      setTransactions]      = useState<Transaction[]>([]);
+  const [monthlyPerfMap,    setMonthlyPerfMap]    = useState<Record<string, number>>({});
+  const [soyPrices,         setSoyPrices]         = useState<Record<string, number>>({});
   const [sincePurchaseSort, setSincePurchaseSort] = useState<'performance' | 'date'>('performance');
-  const [loading,          setLoading]          = useState(true);
-  const [monthlyLoading,   setMonthlyLoading]   = useState(true);
-  const [error,            setError]            = useState<string | null>(null);
+  const [bottomChartMode,   setBottomChartMode]   = useState<'monthly' | 'ytd'>('monthly');
+  const [loading,           setLoading]           = useState(true);
+  const [monthlyLoading,    setMonthlyLoading]    = useState(true);
+  const [error,             setError]             = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [txs, prices] = await Promise.all([getTransactions(), fetchPrices()]);
+      const [txs, prices, soyData] = await Promise.all([
+        getTransactions(),
+        fetchPrices(),
+        fetch('/api/historical-prices?date=2026-01-02').then(r => r.ok ? r.json() : {}),
+      ]);
       const positions = await calculatePositions(txs, prices);
       const summary   = calculatePortfolioSummary(positions);
-      setTransactions(txs); setPortfolio(summary);
+      setTransactions(txs); setPortfolio(summary); setSoyPrices(soyData);
     } catch (err) {
       console.error(err);
       setError('Failed to load data. Please try again.');
@@ -190,6 +196,39 @@ export default function PortfolioPerformancePage() {
       value: monthlyPerfMap[h.ticker],
     }))
     .sort((a, b) => b.value - a.value);
+
+  const ytdItems: BarItem[] = (portfolio?.holdings ?? [])
+    .filter(h => soyPrices[h.ticker] != null && soyPrices[h.ticker] > 0)
+    .map(h => ({
+      label: h.name.split(' ')[0],
+      value: ((h.currentPrice - soyPrices[h.ticker]) / soyPrices[h.ticker]) * 100,
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  const bottomToggle = (
+    <div className="flex rounded-lg border border-gray-700 overflow-hidden text-xs">
+      {(['monthly', 'ytd'] as const).map((mode, i) => (
+        <button
+          key={mode}
+          onClick={() => setBottomChartMode(mode)}
+          className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-700' : ''} ${
+            bottomChartMode === mode ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          {mode === 'monthly' ? 'Monthly' : 'YTD'}
+        </button>
+      ))}
+    </div>
+  );
+
+  const bottomItems    = bottomChartMode === 'monthly' ? thisMonthItems : ytdItems;
+  const bottomTitle    = bottomChartMode === 'monthly'
+    ? `Performance of Stocks This Month — ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`
+    : `Year-to-Date Performance — ${new Date().getFullYear()}`;
+  const bottomValueLabel = bottomChartMode === 'monthly' ? 'Monthly change (%)' : 'YTD change (%)';
+  const bottomSub      = bottomChartMode === 'monthly'
+    ? `Last ${new Date().getDate()} day${new Date().getDate() === 1 ? '' : 's'}`
+    : '2 Jan 2026 → today';
 
   if (loading) return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
@@ -255,25 +294,26 @@ export default function PortfolioPerformancePage() {
           </div>
         )}
 
-        {/* Performance of stock this month */}
+        {/* Performance of stock this month / YTD */}
         <div className="mb-6">
-          {monthlyLoading ? (
+          {monthlyLoading && bottomChartMode === 'monthly' ? (
             <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 flex items-center justify-center h-40">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500 mx-auto" />
                 <p className="mt-2 text-gray-400 text-xs">Fetching monthly prices from Yahoo Finance...</p>
               </div>
             </div>
-          ) : thisMonthItems.length > 0 ? (
+          ) : bottomItems.length > 0 ? (
             <HorizontalBarChart
-              items={thisMonthItems}
-              title={`Performance of Stocks This Month — ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
-              valueLabel="Monthly change (%)"
-              sub={`Last ${new Date().getDate()} day${new Date().getDate() === 1 ? '' : 's'}`}
+              items={bottomItems}
+              title={bottomTitle}
+              valueLabel={bottomValueLabel}
+              sub={bottomSub}
+              action={bottomToggle}
             />
           ) : (
             <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 text-center text-gray-500 text-sm">
-              No monthly price data available
+              No price data available
             </div>
           )}
         </div>

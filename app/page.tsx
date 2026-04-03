@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Navigation from '@/components/Navigation';
 import RefreshButton from '@/components/RefreshButton';
-import { PortfolioSummary, Position } from '@/types';
-import { getTransactions, calculatePositions, fetchPrices, calculatePortfolioSummary } from '@/lib/portfolio';
+import { PortfolioSummary, Position, Transaction } from '@/types';
+import { getTransactions, calculatePositions, fetchPrices, calculatePortfolioSummary, getHoldingsReference } from '@/lib/portfolio';
 
 const formatCurrency = (value: number): string =>
   `£${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -201,21 +201,141 @@ const WeightingHeatMap = ({ holdings, totalValue }: { holdings: Position[]; tota
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
+const SOY_DATE = '2026-01-02';
+
+// ── Holdings row (open + closed) ───────────────────────────────────────────────
+
+interface HoldingRow {
+  holdingId: number;
+  name: string;
+  ticker: string;
+  firstPurchaseDate: string | null;
+  lastSellDate: string | null;
+  soyShares: number;
+  curShares: number;
+  curPrice: number;
+  curValue: number;
+  costBasis: number;   // current cost basis (0 for closed)
+  isNew: boolean;
+  isClosed: boolean;
+  sharesChanged: boolean;
+}
+
+function buildHoldingRows(
+  transactions: Transaction[],
+  holdingsRef: Array<{ id: number; name: string; ticker: string; sector: string }>,
+  livePrices: Record<string, number>,
+): HoldingRow[] {
+  const holdingInfo = new Map(holdingsRef.map(h => [h.id, h]));
+  const allIds = new Set(transactions.map(tx => tx.holdingId));
+
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 3);
+  const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+
+  // First purchase dates and last sell dates
+  const firstPurchaseDates = new Map<number, string>();
+  const lastSellDates = new Map<number, string>();
+  for (const tx of transactions) {
+    if (tx.type === 'buy') {
+      const ex = firstPurchaseDates.get(tx.holdingId);
+      if (!ex || tx.date < ex) firstPurchaseDates.set(tx.holdingId, tx.date);
+    } else if (tx.type === 'sell') {
+      const ex = lastSellDates.get(tx.holdingId);
+      if (!ex || tx.date > ex) lastSellDates.set(tx.holdingId, tx.date);
+    }
+  }
+
+  const rows: HoldingRow[] = [];
+
+  for (const holdingId of allIds) {
+    const info = holdingInfo.get(holdingId);
+    if (!info) continue;
+
+    const txs = [...transactions.filter(tx => tx.holdingId === holdingId)]
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Current position (all transactions)
+    let curShares = 0, curCost = 0;
+    for (const tx of txs) {
+      if (tx.type === 'buy') { curShares += tx.shares; curCost += tx.totalCost; }
+      else if (tx.type === 'sell') {
+        const avg = curShares > 0 ? curCost / curShares : 0;
+        curShares -= tx.shares; curCost -= avg * tx.shares;
+      }
+    }
+    curShares = Math.max(0, curShares);
+
+    // SOY position (transactions up to SOY_DATE)
+    let soyShares = 0, soyCost = 0;
+    for (const tx of txs.filter(t => t.date <= SOY_DATE)) {
+      if (tx.type === 'buy') { soyShares += tx.shares; soyCost += tx.totalCost; }
+      else if (tx.type === 'sell') {
+        const avg = soyShares > 0 ? soyCost / soyShares : 0;
+        soyShares -= tx.shares; soyCost -= avg * tx.shares;
+      }
+    }
+    soyShares = Math.max(0, soyShares);
+
+    const curPrice = livePrices[info.ticker] ?? 0;
+
+    rows.push({
+      holdingId,
+      name:              info.name,
+      ticker:            info.ticker,
+      firstPurchaseDate: firstPurchaseDates.get(holdingId) ?? null,
+      lastSellDate:      lastSellDates.get(holdingId) ?? null,
+      soyShares,
+      curShares,
+      curPrice,
+      curValue:    curPrice * curShares,
+      costBasis:   curCost,
+      isNew:       curShares > 0.001 && (firstPurchaseDates.get(holdingId) ?? '') >= sixMonthsAgoStr,
+      isClosed:    curShares <= 0.001,
+      sharesChanged: soyShares > 0.001 && curShares > 0.001 && Math.abs(soyShares - curShares) > 0.001,
+    });
+  }
+
+  // Open positions: newest first; closed positions at the very bottom
+  return rows.sort((a, b) => {
+    if (a.isClosed !== b.isClosed) return a.isClosed ? 1 : -1;
+    const da = a.firstPurchaseDate ?? '';
+    const db = b.firstPurchaseDate ?? '';
+    return db.localeCompare(da); // newest first
+  });
+}
+
 export default function OverviewPage() {
-  const [portfolio,    setPortfolio]    = useState<PortfolioSummary | null>(null);
-  const [loading,      setLoading]      = useState(true);
-  const [lastUpdated,  setLastUpdated]  = useState<Date | null>(null);
-  const [error,        setError]        = useState<string | null>(null);
-  const [holdingsOpen, setHoldingsOpen] = useState(false);
+  const [portfolio,     setPortfolio]     = useState<PortfolioSummary | null>(null);
+  const [holdingRows,   setHoldingRows]   = useState<HoldingRow[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [lastUpdated,   setLastUpdated]   = useState<Date | null>(null);
+  const [error,         setError]         = useState<string | null>(null);
+  const [holdingsOpen,  setHoldingsOpen]  = useState(false);
+  const [viewMode,      setViewMode]      = useState<'ytd' | '1year' | 'purchase'>('purchase');
+  const [soyPrices,     setSoyPrices]     = useState<Record<string, number>>({});
+  const [oneYearPrices, setOneYearPrices] = useState<Record<string, number>>({});
 
   const fetchData = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      const transactions = await getTransactions();
-      const prices       = await fetchPrices();
-      const positions    = await calculatePositions(transactions, prices);
+      const oneYearDate = new Date();
+      oneYearDate.setFullYear(oneYearDate.getFullYear() - 1);
+      const oneYearDateStr = oneYearDate.toISOString().split('T')[0];
+
+      const [transactions, prices, soyData, oneYearData, holdingsRef] = await Promise.all([
+        getTransactions(),
+        fetchPrices(),
+        fetch(`/api/historical-prices?date=${SOY_DATE}`).then(r => r.ok ? r.json() : {}),
+        fetch(`/api/historical-prices?date=${oneYearDateStr}`).then(r => r.ok ? r.json() : {}),
+        getHoldingsReference(),
+      ]);
+      const positions = await calculatePositions(transactions, prices);
       setPortfolio(calculatePortfolioSummary(positions));
+      setSoyPrices(soyData);
+      setOneYearPrices(oneYearData);
+      setHoldingRows(buildHoldingRows(transactions, holdingsRef, prices));
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -367,58 +487,180 @@ export default function OverviewPage() {
           </button>
 
           {holdingsOpen && (
-            <div className="overflow-auto max-h-[70vh] border-t border-gray-800">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10">
-                  <tr className="border-b border-gray-800 bg-gray-900">
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Company</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ticker</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Avg Cost</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">P&L (£)</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">P&L (%)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {portfolio.holdings.map(holding => (
-                    <tr key={holding.holdingId} className="hover:bg-gray-800/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-white">{holding.name}</td>
-                      <td className="px-6 py-4">
-                        <a href={`https://uk.finance.yahoo.com/quote/${holding.ticker}`}
-                          target="_blank" rel="noopener noreferrer"
-                          className="text-emerald-400 hover:text-emerald-300 font-mono text-xs hover:underline transition-colors">
-                          {holding.ticker}
-                        </a>
-                      </td>
-                      <td className="px-6 py-4 text-right text-gray-300">{holding.shares.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-right text-gray-300">{formatCurrency(holding.avgCost)}</td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-300">{formatCurrency(holding.currentPrice)}</td>
-                      <td className="px-6 py-4 text-right text-gray-300">{formatCurrency(holding.currentValue)}</td>
-                      <td className={`px-6 py-4 text-right font-medium ${holding.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {holding.pnl >= 0 ? '+' : ''}{formatCurrency(holding.pnl)}
-                      </td>
-                      <td className={`px-6 py-4 text-right font-medium ${holding.pnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {formatPercent(holding.pnlPercent)}
-                      </td>
-                    </tr>
+            <>
+              {/* Toggle bar */}
+              <div className="px-6 py-3 border-t border-gray-800 flex items-center justify-between flex-wrap gap-3">
+                <p className="hidden sm:block text-xs text-gray-500">
+                  {viewMode === 'ytd'      ? 'Comparing 2 Jan 2026 value vs today'
+                   : viewMode === '1year'  ? 'Comparing value 12 months ago vs today'
+                   : 'Comparing cost basis vs current value'}
+                </p>
+                <div className="hidden sm:flex rounded-lg border border-gray-700 overflow-hidden text-xs">
+                  {(['ytd', '1year', 'purchase'] as const).map((mode, i) => (
+                    <button
+                      key={mode}
+                      onClick={() => setViewMode(mode)}
+                      className={`px-3 py-1.5 transition-colors ${i > 0 ? 'border-l border-gray-700' : ''} ${
+                        viewMode === mode ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      {mode === 'ytd' ? 'YTD' : mode === '1year' ? '12 Months' : 'Since Purchase'}
+                    </button>
                   ))}
-                </tbody>
-                <tfoot className="bg-gray-900 border-t border-gray-800">
-                  <tr>
-                    <td colSpan={5} className="px-6 py-4 text-right font-semibold text-gray-300">Total Portfolio</td>
-                    <td className="px-6 py-4 text-right font-bold text-white">{formatCurrency(portfolio.totalValue)}</td>
-                    <td className={`px-6 py-4 text-right font-bold ${portfolio.totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {portfolio.totalPnl >= 0 ? '+' : ''}{formatCurrency(portfolio.totalPnl)}
-                    </td>
-                    <td className={`px-6 py-4 text-right font-bold ${portfolio.totalPnlPercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {formatPercent(portfolio.totalPnlPercent)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                </div>
+              </div>
+
+              <div className="overflow-y-auto overflow-x-hidden sm:overflow-x-auto max-h-[70vh] border-t border-gray-800">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-gray-800 bg-gray-900">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Company</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ticker</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">First Purchased</th>
+                      <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Shares</th>
+                      <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        {viewMode === 'ytd' ? '2 Jan Value' : viewMode === '1year' ? '1 Year Ago' : 'Cost Basis'}
+                      </th>
+                      <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Current Price</th>
+                      <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Value</th>
+                      <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        {viewMode === 'ytd' ? 'YTD Change' : viewMode === '1year' ? '12M Change' : 'Total Return'}
+                      </th>
+                      <th className="hidden sm:table-cell px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                        {viewMode === 'ytd' ? 'YTD %' : viewMode === '1year' ? '12M %' : 'Return %'}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800">
+                    {holdingRows.map(row => {
+                      const refValue = viewMode === 'ytd'
+                        ? (soyPrices[row.ticker] ?? 0) * row.soyShares
+                        : viewMode === '1year'
+                        ? (oneYearPrices[row.ticker] ?? 0) * row.curShares
+                        : row.costBasis;
+                      const change    = row.curValue - refValue;
+                      const changePct = refValue > 0 ? (change / refValue) * 100 : 0;
+
+                      const rowBg = row.isNew
+                        ? 'bg-blue-900/10 hover:bg-blue-900/20'
+                        : row.isClosed
+                        ? 'bg-gray-800/20 opacity-60 hover:opacity-80'
+                        : row.sharesChanged
+                        ? 'bg-amber-900/10 hover:bg-amber-900/20'
+                        : 'hover:bg-gray-800/50';
+
+                      const changeColor = row.isClosed
+                        ? 'text-red-400'
+                        : row.isNew
+                        ? 'text-gray-400'
+                        : change >= 0 ? 'text-emerald-400' : 'text-red-400';
+
+                      return (
+                        <tr key={row.holdingId} className={`transition-colors ${rowBg}`}>
+                          {/* Company + badges */}
+                          <td className={`px-6 py-4 font-medium ${row.isClosed ? 'text-gray-500' : 'text-white'}`}>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>{row.name}</span>
+                              {row.isNew && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-900/50 text-blue-400 border border-blue-700/50 font-normal">New</span>
+                              )}
+                              {row.isClosed && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-800 text-gray-500 border border-gray-700 font-normal">Sold</span>
+                              )}
+                              {row.sharesChanged && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-900/50 text-amber-400 border border-amber-700/50 font-normal">Rebalanced</span>
+                              )}
+                            </div>
+                          </td>
+                          {/* Ticker */}
+                          <td className="px-6 py-4">
+                            <a href={`https://uk.finance.yahoo.com/quote/${row.ticker}`}
+                              target="_blank" rel="noopener noreferrer"
+                              className="text-emerald-400 hover:text-emerald-300 font-mono text-xs hover:underline transition-colors">
+                              {row.ticker}
+                            </a>
+                          </td>
+                          {/* First purchased / sold */}
+                          <td className="px-6 py-4 text-gray-400 text-xs">
+                            <div>{row.firstPurchaseDate
+                              ? new Date(row.firstPurchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                              : '—'}
+                            </div>
+                            {row.isClosed && row.lastSellDate && (
+                              <div className="text-gray-500 mt-0.5">
+                                → {new Date(row.lastSellDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </div>
+                            )}
+                          </td>
+                          {/* Shares */}
+                          <td className="hidden sm:table-cell px-6 py-4 text-right font-mono text-xs text-gray-300 whitespace-nowrap">
+                            {row.isClosed ? (
+                              <span className="text-gray-500">{row.soyShares > 0 ? `${row.soyShares.toFixed(2)} → 0` : '—'}</span>
+                            ) : row.isNew ? (
+                              <span className="text-blue-400">0 → {row.curShares.toFixed(2)}</span>
+                            ) : row.sharesChanged ? (
+                              <span className="text-amber-400">{row.soyShares.toFixed(2)} → {row.curShares.toFixed(2)}</span>
+                            ) : (
+                              <span>{row.curShares.toLocaleString()}</span>
+                            )}
+                          </td>
+                          {/* Reference value */}
+                          <td className="hidden sm:table-cell px-6 py-4 text-right text-gray-400">
+                            {refValue > 0 ? formatCurrency(refValue) : '—'}
+                          </td>
+                          {/* Current price */}
+                          <td className="hidden sm:table-cell px-6 py-4 text-right font-mono text-gray-300">
+                            {row.curPrice > 0 ? formatCurrency(row.curPrice) : '—'}
+                          </td>
+                          {/* Current value */}
+                          <td className="hidden sm:table-cell px-6 py-4 text-right text-gray-300">
+                            {row.curValue > 0 ? formatCurrency(row.curValue) : '—'}
+                          </td>
+                          {/* Change £ */}
+                          <td className={`hidden sm:table-cell px-6 py-4 text-right font-medium ${refValue > 0 ? changeColor : 'text-gray-500'}`}>
+                            {refValue > 0 ? `${change >= 0 ? '+' : ''}${formatCurrency(change)}` : '—'}
+                          </td>
+                          {/* Change % */}
+                          <td className={`hidden sm:table-cell px-6 py-4 text-right font-medium ${refValue > 0 ? changeColor : 'text-gray-500'}`}>
+                            {refValue > 0 ? formatPercent(changePct) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-gray-900 border-t border-gray-800">
+                    {(() => {
+                      const refTotal = viewMode === 'ytd'
+                        ? holdingRows.reduce((s, r) => s + (soyPrices[r.ticker] ?? 0) * r.soyShares, 0)
+                        : viewMode === '1year'
+                        ? holdingRows.reduce((s, r) => s + (oneYearPrices[r.ticker] ?? 0) * r.curShares, 0)
+                        : holdingRows.reduce((s, r) => s + r.costBasis, 0);
+                      const curTotal       = holdingRows.reduce((s, r) => s + r.curValue, 0);
+                      const totalChange    = curTotal - refTotal;
+                      const totalChangePct = refTotal > 0 ? (totalChange / refTotal) * 100 : 0;
+                      const pos = totalChange >= 0;
+                      return (
+                        <tr>
+                          <td colSpan={3} className="px-6 py-4 text-right font-semibold text-gray-300">Total Portfolio</td>
+                          <td className="hidden sm:table-cell" />
+                          <td className="hidden sm:table-cell px-6 py-4 text-right font-bold text-gray-300">
+                            {formatCurrency(refTotal)}
+                          </td>
+                          <td className="hidden sm:table-cell" />
+                          <td className="px-6 py-4 text-right font-bold text-white">{formatCurrency(curTotal)}</td>
+                          <td className={`hidden sm:table-cell px-6 py-4 text-right font-bold ${pos ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {pos ? '+' : ''}{formatCurrency(totalChange)}
+                          </td>
+                          <td className={`px-6 py-4 text-right font-bold ${pos ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {formatPercent(totalChangePct)}
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                  </tfoot>
+                </table>
+              </div>
+            </>
           )}
         </div>
 

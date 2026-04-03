@@ -408,7 +408,7 @@ export default function HoldingsPage() {
         </div>
 
         {/* Sector Filter */}
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex gap-1.5 sm:gap-2 mb-4 flex-wrap">
           {sectors.map(sector => {
             const color = sector === 'All' ? '#10b981' : (sectorColors[sector] ?? '#6b7280');
             const isActive = selectedSector === sector;
@@ -417,7 +417,7 @@ export default function HoldingsPage() {
                 key={sector}
                 onClick={() => setSelectedSector(sector)}
                 style={isActive ? { backgroundColor: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}
-                className={`px-4 py-1.5 text-sm rounded-full border transition-colors ${isActive ? '' : 'bg-transparent hover:opacity-80'}`}
+                className={`px-2.5 py-1 text-xs sm:px-4 sm:py-1.5 sm:text-sm rounded-full border transition-colors ${isActive ? '' : 'bg-transparent hover:opacity-80'} ${sector === 'Technology' ? 'ml-3 sm:ml-0' : ''}`}
               >
                 {sector} {sector !== 'All' && `(${portfolio.holdings.filter(h => h.sector === sector).length})`}
               </button>
