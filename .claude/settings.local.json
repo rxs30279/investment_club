@@ -6,7 +6,9 @@
       "Bash(find /c/Users/richa/Documents/WebProjects/Investment_club_dashboard/investment-club-dashboard -name *.ts -path */api/performance/* -type f)",
       "Bash(xargs grep:*)",
       "Bash(find /c/Users/richa/Documents/WebProjects/Investment_club_dashboard/investment-club-dashboard -path */.next -prune -o -path */node_modules -prune -o -type f \\\\\\(-name schema.sql -o -name *migration* -o -name *.md \\\\\\) -print)",
-      "Bash(grep -r treasurer_reports /c/Users/richa/Documents/WebProjects/Investment_club_dashboard/investment-club-dashboard --include=*.sql --include=*.ts --include=*.tsx)"
+      "Bash(grep -r treasurer_reports /c/Users/richa/Documents/WebProjects/Investment_club_dashboard/investment-club-dashboard --include=*.sql --include=*.ts --include=*.tsx)",
+      "Bash(rm -rf app/competition/month app/competition/layout.tsx app/competition/components app/competition/page.module.css)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

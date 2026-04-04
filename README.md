@@ -1,4 +1,4 @@
-# 📊 MESI Investment Club Dashboard
+# MESI Investment Club Dashboard
 
 A full-stack web application for managing and tracking a small investment club portfolio. Built with Next.js, Supabase, and Tailwind CSS — deployed on Vercel.
 
@@ -10,76 +10,94 @@ A full-stack web application for managing and tracking a small investment club p
 
 ---
 
-## ✨ Features
+## Screenshots
 
-### 📋 Portfolio Management
+### Home — Portfolio Overview
+![Home page](app/pics/Home_page.png)
+
+### Unit Value Performance
+![Unit Value Performance](app/pics/Unit%20Value%20Performance.png)
+
+### Stock Performance
+![Stock Performance](app/pics/Stock_performance.png)
+
+### 52-Week Range
+![52-Week Range](app/pics/52_week.png)
+
+---
+
+## Features
+
+### Portfolio Management
 
 - Live share prices fetched from Yahoo Finance
-- Current value, average cost, P&L per holding
+- Current value, average cost, and P&L per holding
 - Full portfolio summary with total return since inception
 
-### 📈 Transaction History
+### Transaction History
 
 - Complete log of all buy and sell transactions
-- Add new transactions with shares, price, commission
+- Add new transactions with shares, price, and commission
 - Automatic position and cost basis calculation
 
-### 📊 Unit Value Performance
+### Unit Value Performance
 
 - Automatic PDF extraction from monthly treasurer valuation reports
 - Unit value progression charted over time
 - FTSE 100 & FTSE 250 benchmark overlay (rebased to same start point)
-- Monthly breakdown table with % change and since-inception return
+- Monthly breakdown table with percentage change and since-inception return
 - Toggle between relative performance and raw unit value views
 
-![Dashboard Overview](Unit%20Value%20Performance.png)
-
-### 📈 General Performance
+### General Performance
 
 - Individual share performance since purchase (horizontal bar chart)
-- Monthly performance for current month via Yahoo Finance
+- Monthly performance for the current month via Yahoo Finance
 - Monthly return boxes for full history with FTSE 100 comparison
 - Dividend income tracking with YTD totals
+
+### Portfolio Fees
+
 - Running costs calculator:
   - £9 dealing fee per buy/sell transaction
   - 0.5% stamp duty on buys (per-holding exclusions supported)
   - 0.2% p.a. custody fee estimated quarterly
 
-### 💰 Treasurer's Reports
+### Treasurer's Reports
 
 - Upload and store monthly PDF valuation reports
 - Auto-ordered by valuation date extracted from PDF
 - One-click sync to extract unit values from new PDFs
 - Sync button protected by separate admin password
 
-### 📝 Meeting Minutes
+### Meeting Minutes
 
 - Store and view club meeting minutes
 
-### 🔒 Access Control
+### Access Control
 
-- Site-wide club password protection
+- Site-wide login page with JWT-based session authentication
 - Separate admin password for treasurer functions
-- Session-based authentication (login once per browser session)
+- Sessions persist across page loads without re-entering the password
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
-| Layer        | Technology                                 |
-| ------------ | ------------------------------------------ |
-| Frontend     | Next.js 16 (App Router), React, TypeScript |
-| Styling      | Tailwind CSS                               |
-| Database     | Supabase (PostgreSQL)                      |
-| File Storage | Supabase Storage                           |
-| Charts       | Recharts, Chart.js                         |
-| PDF Parsing  | pdf-parse-fork                             |
-| Price Data   | Yahoo Finance API                          |
-| Deployment   | Vercel                                     |
+| Layer        | Technology                                  |
+| ------------ | ------------------------------------------- |
+| Frontend     | Next.js 16 (App Router), React 19, TypeScript |
+| Styling      | Tailwind CSS v4                             |
+| Database     | Supabase (PostgreSQL)                       |
+| File Storage | Supabase Storage                            |
+| Charts       | Recharts, Chart.js, Lightweight Charts      |
+| PDF Parsing  | pdf-parse-fork, pdf-lib                     |
+| Price Data   | Yahoo Finance API                           |
+| Auth         | JWT sessions via jose                       |
+| Deployment   | Vercel                                      |
 
 ---
 
-## 🗄 Database Schema
+## Database Schema
 
 ```sql
 -- Treasurer PDF reports
@@ -100,7 +118,7 @@ dividends (id, holding_id, date, amount, currency, notes)
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -112,7 +130,7 @@ dividends (id, holding_id, date, amount, currency, notes)
 
 ```bash
 git clone https://github.com/your-username/investment_club.git
-cd investment_club
+cd investment-club-dashboard
 ```
 
 ### 2. Install dependencies
@@ -129,35 +147,14 @@ Create a `.env.local` file in the project root:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-NEXT_PUBLIC_ADMIN_PASSWORD=your-admin-password
+CLUB_PASSWORD=your-club-password
+ADMIN_PASSWORD=your-admin-password
+JWT_SECRET=a-long-random-secret-string
 ```
 
 ### 4. Set up the database
 
-Run the following SQL in your Supabase SQL editor:
-
-```sql
--- Unit values table
-create table if not exists unit_values (
-  id              bigint generated always as identity primary key,
-  report_id       bigint references treasurer_reports(id) on delete cascade,
-  file_name       text,
-  valuation_date  date not null,
-  unit_value      numeric(10, 4) not null,
-  created_at      timestamptz default now()
-);
-
-create unique index if not exists unit_values_file_name_idx
-  on unit_values (file_name);
-
-alter table unit_values enable row level security;
-
-create policy "Allow public reads" on unit_values
-  for select using (true);
-
-create policy "Allow service role inserts" on unit_values
-  for insert with check (true);
-```
+Run the SQL migrations in your Supabase SQL editor. Migration files are in the `migrations/` directory.
 
 ### 5. Run the development server
 
@@ -169,62 +166,74 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ├── app/
 │   ├── api/
-│   │   ├── ftse100/          # Live FTSE 100 data from Yahoo Finance
-│   │   ├── ftse250/          # Live FTSE 250 data from Yahoo Finance
-│   │   ├── monthly-performance/  # Monthly share price changes
+│   │   ├── auth/                  # Login / logout endpoints
+│   │   ├── fundamentals/          # Stock fundamentals data
+│   │   ├── historical-prices/     # Historical price data
+│   │   ├── holdings/              # Holdings CRUD
+│   │   ├── monthly-performance/   # Monthly share price changes
 │   │   ├── performance/
-│   │   │   ├── sync/         # PDF extraction & unit value sync
-│   │   │   └── benchmarks/   # Rebased benchmark data
-│   │   └── prices/           # Live share prices
-│   ├── holdings/             # Holdings page
-│   ├── history/              # Transaction history
-│   ├── minutes/              # Meeting minutes
-│   ├── performance/          # Unit value performance page
-│   ├── portfolio-performance/ # General performance page
-│   ├── treasurer/            # Treasurer reports page
-│   └── manage/               # Admin management page
+│   │   │   ├── sync/              # PDF extraction & unit value sync
+│   │   │   └── benchmarks/        # Rebased benchmark data
+│   │   ├── prices/                # Live share prices
+│   │   ├── transactions/          # Transaction CRUD
+│   │   ├── treasurer/             # Treasurer report management
+│   │   └── unit-values/           # Unit value data
+│   ├── data/                      # Static data files
+│   ├── history/                   # Transaction history page
+│   ├── holdings/                  # Holdings page
+│   ├── login/                     # Login page
+│   ├── manage/                    # Admin management page
+│   ├── minutes/                   # Meeting minutes page
+│   ├── performance/               # Unit value performance page
+│   ├── portfolio-fees/            # Portfolio fees page
+│   ├── portfolio-performance/     # General performance page
+│   ├── treasurer/                 # Treasurer reports page
+│   ├── AuthGuard.tsx              # Client-side auth protection wrapper
+│   ├── layout.tsx                 # Root layout
+│   ├── metadata.ts                # Shared metadata config
+│   └── page.tsx                   # Home / dashboard page
 ├── components/
-│   ├── Navigation.tsx        # Responsive nav (hamburger on mobile)
-│   ├── PasswordProtect.tsx   # Site-wide password gate
-│   ├── StockPerformanceChart.tsx
-│   └── PerformanceChart.tsx
+│   ├── Navigation.tsx             # Responsive nav (hamburger on mobile)
+│   ├── PasswordProtect.tsx        # Legacy password gate component
+│   └── RefreshButton.tsx          # Data refresh button
 ├── lib/
-│   ├── portfolio.ts          # Portfolio data fetching & calculations
-│   ├── performance.ts        # Unit value data & benchmark helpers
-│   └── supabase.ts           # Supabase client
-└── types/
-    └── index.ts              # TypeScript interfaces
+│   ├── performance.ts             # Unit value data & benchmark helpers
+│   ├── portfolio.ts               # Portfolio data fetching & calculations
+│   ├── session.ts                 # JWT session helpers
+│   └── supabase.ts                # Supabase client
+├── migrations/                    # SQL migration files
+├── types/
+│   └── index.ts                   # TypeScript interfaces
+└── scripts/                       # Utility scripts
 ```
 
 ---
 
-## 🔄 Monthly Workflow
+## Monthly Workflow
 
 Each month when the treasurer produces a new valuation report:
 
-1. Go to **Treasurer** page
+1. Go to the **Treasurer** page
 2. Click **+ Upload Report** and upload the PDF
-3. Click **⟳ Sync Performance** and enter the admin password
+3. Click **Sync Performance** and enter the admin password
 4. The unit value and valuation date are automatically extracted from the PDF
 5. The Unit Value Performance chart updates immediately
 
 ---
 
-## 🌐 Deployment
+## Deployment
 
 The app is deployed on Vercel. Every push to the `main` branch triggers an automatic redeployment.
 
-### Environment variables on Vercel
-
-Add the same variables from `.env.local` in Vercel dashboard under **Settings → Environment Variables**.
+Add the same variables from `.env.local` in the Vercel dashboard under **Settings → Environment Variables**.
 
 ---
 
-## 📄 Licence
+## Licence
 
 Private project — MESI Investment Club. Not licensed for public use.
