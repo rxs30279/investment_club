@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 const navItems = [
   { href: '/', label: 'Home', icon: null },
@@ -18,13 +18,12 @@ const navItems = [
 
 export default function Navigation() {
   const pathname = usePathname();
-  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
-    router.refresh();
+  const handleLogout = () => {
+    localStorage.removeItem('global_auth');
+    sessionStorage.removeItem('manage_auth');
+    window.location.href = '/';
   };
 
   return (

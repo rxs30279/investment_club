@@ -10,7 +10,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const auth = sessionStorage.getItem('global_auth');
+    const auth = localStorage.getItem('global_auth');
     if (auth === 'true') {
       setIsAuthenticated(true);
     } else {
@@ -20,7 +20,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const handleLogin = (password: string) => {
     if (password === SITE_PASSWORD) {
-      sessionStorage.setItem('global_auth', 'true');
+      localStorage.setItem('global_auth', 'true');
       setIsAuthenticated(true);
       // Redirect to overview page after login
       router.push('/');
@@ -70,9 +70,11 @@ function LoginScreen({ onLogin }: { onLogin: (password: string) => boolean }) {
         </div>
         
         <form onSubmit={handleSubmit}>
+          <input type="hidden" name="username" autoComplete="username" value="member" readOnly />
           <div className="mb-4">
             <input
               type="password"
+              name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"

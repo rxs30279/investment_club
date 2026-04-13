@@ -7,7 +7,7 @@ interface PasswordProtectProps {
   pageName?: string;
 }
 
-const SITE_PASSWORD = 'MESI2026'; // Change this to your club password
+const MANAGE_PASSWORD = 'manage2026';
 
 export default function PasswordProtect({ children, pageName = 'this page' }: PasswordProtectProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -15,8 +15,7 @@ export default function PasswordProtect({ children, pageName = 'this page' }: Pa
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    // Check if already authenticated in this session
-    const auth = sessionStorage.getItem('club_auth');
+    const auth = sessionStorage.getItem('manage_auth');
     if (auth === 'true') {
       setIsAuthenticated(true);
     }
@@ -24,9 +23,9 @@ export default function PasswordProtect({ children, pageName = 'this page' }: Pa
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === SITE_PASSWORD) {
+    if (password === MANAGE_PASSWORD) {
       setIsAuthenticated(true);
-      sessionStorage.setItem('club_auth', 'true');
+      sessionStorage.setItem('manage_auth', 'true');
       setError(false);
     } else {
       setError(true);
@@ -45,17 +44,17 @@ export default function PasswordProtect({ children, pageName = 'this page' }: Pa
           <div className="text-4xl mb-3">🔒</div>
           <h2 className="text-xl font-bold text-white">Protected Page</h2>
           <p className="text-gray-400 text-sm mt-1">
-            Please enter the password to access {pageName}
+            Please enter the admin password to access {pageName}
           </p>
         </div>
-        
+
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
+              placeholder="Enter admin password"
               autoFocus
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
             />
@@ -70,7 +69,7 @@ export default function PasswordProtect({ children, pageName = 'this page' }: Pa
             Access Page
           </button>
         </form>
-        
+
         <div className="mt-4 text-center">
           <a href="/" className="text-gray-500 hover:text-gray-400 text-sm">
             ← Return to Dashboard
