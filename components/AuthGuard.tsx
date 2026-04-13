@@ -1,13 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
 const SITE_PASSWORD = 'MESI2026';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     const auth = localStorage.getItem('global_auth');
@@ -22,8 +20,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     if (password === SITE_PASSWORD) {
       localStorage.setItem('global_auth', 'true');
       setIsAuthenticated(true);
-      // Redirect to overview page after login
-      router.push('/');
       return true;
     }
     return false;
