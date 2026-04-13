@@ -107,14 +107,18 @@ export default function TreasurerPage() {
       ]);
       const [perf, divs] = await Promise.all([perfRes.json(), divsRes.json()]);
 
-      const perfMsg = perf.errors?.length > 0
-        ? `Performance: ${perf.processed} added, ${perf.errors.length} failed`
-        : `Performance: ${perf.message}`;
-      const divsMsg = divs.errors?.length > 0
-        ? `Dividends: ${divs.processed} added, ${divs.errors.length} issue(s)`
-        : `Dividends: ${divs.message}`;
+      const perfMsg = perf.error
+        ? `Performance: Error — ${perf.error}`
+        : perf.errors?.length > 0
+          ? `Performance: ${perf.processed} added, ${perf.errors.length} failed`
+          : `Performance: ${perf.message}`;
+      const divsMsg = divs.error
+        ? `Dividends: Error — ${divs.error}`
+        : divs.errors?.length > 0
+          ? `Dividends: ${divs.processed} added, ${divs.errors.length} issue(s)`
+          : `Dividends: ${divs.message}`;
 
-      const ok = !perf.errors?.length && !divs.errors?.length;
+      const ok = !perf.error && !divs.error && !perf.errors?.length && !divs.errors?.length;
       setSyncResult({ ok, message: `${perfMsg} · ${divsMsg}` });
     } catch (err) {
       console.error('Sync error:', err);

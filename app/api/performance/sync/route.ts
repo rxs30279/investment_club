@@ -116,8 +116,6 @@ export async function POST() {
   file_name: string;
   valuation_date: string;
   unit_value: number;
-  total_assets: number;
-  total_units: number;
 }[] = [];
 
     for (const report of newReports) {
@@ -136,7 +134,7 @@ export async function POST() {
           results.push({
             file_name: report.file_name,
             status: 'error',
-            detail: 'Could not find Unit Value or Valuation Date in PDF text',
+            detail: `Could not find Unit Value or Valuation Date in PDF text. First 500 chars: ${text.slice(0, 500).replace(/\n/g, ' ')}`,
           });
           continue;
         }
@@ -146,8 +144,6 @@ export async function POST() {
           file_name:      report.file_name,
           valuation_date: extracted.valuationDate,
           unit_value:     extracted.unitValue,
-          total_assets:   extracted.totalAssets,
-          total_units:    extracted.totalUnits,
         });
 
         results.push({ file_name: report.file_name, status: 'ok' });
@@ -166,10 +162,21 @@ export async function POST() {
         .from('unit_values')
         .insert(toInsert);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('[performance/sync] Insert error:', insertError);
+        return NextResponse.json({
+          message: `DB insert failed — ${insertError.message}`,
+          processed: 0,
+          skipped: reports.length - newReports.length,
+          errors: [{ file_name: 'bulk-insert', status: 'error', detail: insertError.message }],
+        });
+      }
     }
 
     const errorResults = results.filter(r => r.status === 'error');
+    if (errorResults.length > 0) {
+      console.error('[performance/sync] Extraction errors:', JSON.stringify(errorResults, null, 2));
+    }
 
     return NextResponse.json({
       message: `Sync complete — ${toInsert.length} new record(s) added`,
