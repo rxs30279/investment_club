@@ -32,7 +32,10 @@ export async function POST(request: Request) {
             `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}` +
             `?period1=${fromTs}&period2=${toTs}&interval=1d`;
 
-          const res = await fetch(url, { headers: YAHOO_HEADERS });
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch(url, { signal: controller.signal, headers: YAHOO_HEADERS });
+          clearTimeout(timeoutId);
           if (!res.ok) return;
 
           const json = await res.json();

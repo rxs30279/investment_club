@@ -7,7 +7,10 @@ const YAHOO_HEADERS = {
 async function fetch52WeekRange(ticker: string) {
   // 1y is enough for a 52-week high/low — no need to fetch 2 years
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
-  const res = await fetch(url, { headers: YAHOO_HEADERS });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const res = await fetch(url, { signal: controller.signal, headers: YAHOO_HEADERS });
+  clearTimeout(timeoutId);
   if (!res.ok) {
     console.error(`Chart API failed for ${ticker}: ${res.status}`);
     return { high52Week: 0, low52Week: 0, currentPrice: 0 };

@@ -30,12 +30,16 @@ export async function GET() {
       uniqueTickers.map(async (ticker) => {
         try {
           const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
           const response = await fetch(url, {
+            signal: controller.signal,
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Accept': 'application/json',
             },
           });
+          clearTimeout(timeoutId);
 
           if (!response.ok) {
             console.warn(`Failed to fetch ${ticker}: ${response.status}`);

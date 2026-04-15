@@ -41,68 +41,62 @@ export async function GET(request: Request) {
     const holdings = parsedData.holdings || [];
     const uniqueTickers = [...new Set(holdings.map((h) => h.ticker))];
 
-    const prices: Record<string, number> = {};
+    const targetTs = targetDate.getTime() / 1000;
 
-    for (const ticker of uniqueTickers) {
-      try {
-        const url =
-          `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}` +
-          `?period1=${period1}&period2=${period2}&interval=1d`;
+    const entries = await Promise.all(
+      uniqueTickers.map(async (ticker): Promise<[string, number]> => {
+        try {
+          const url =
+            `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}` +
+            `?period1=${period1}&period2=${period2}&interval=1d`;
 
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            Accept: 'application/json',
-          },
-        });
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const response = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              Accept: 'application/json',
+            },
+          });
+          clearTimeout(timeoutId);
 
-        if (!response.ok) {
-          console.warn(`Failed to fetch historical ${ticker}: ${response.status}`);
-          prices[ticker] = 0;
-          continue;
-        }
-
-        const data = await response.json();
-        const result = data.chart?.result?.[0];
-
-        if (!result) {
-          prices[ticker] = 0;
-          continue;
-        }
-
-        const timestamps: number[] = result.timestamps ?? result.timestamp ?? [];
-        const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
-
-        if (timestamps.length === 0 || closes.length === 0) {
-          prices[ticker] = 0;
-          continue;
-        }
-
-        // Find the close price on the last trading day on or before the target date
-        const targetTs = targetDate.getTime() / 1000;
-        let bestPrice = 0;
-        let bestTs = -Infinity;
-
-        for (let i = 0; i < timestamps.length; i++) {
-          const ts = timestamps[i];
-          const close = closes[i];
-          if (close == null) continue;
-          // Keep the entry whose timestamp is closest to (but not after) targetTs
-          if (ts <= targetTs + 86400 && ts > bestTs) {
-            bestTs = ts;
-            bestPrice = close;
+          if (!response.ok) {
+            console.warn(`Failed to fetch historical ${ticker}: ${response.status}`);
+            return [ticker, 0];
           }
+
+          const data = await response.json();
+          const result = data.chart?.result?.[0];
+          if (!result) return [ticker, 0];
+
+          const timestamps: number[] = result.timestamps ?? result.timestamp ?? [];
+          const closes: number[] = result.indicators?.quote?.[0]?.close ?? [];
+          if (timestamps.length === 0 || closes.length === 0) return [ticker, 0];
+
+          // Find the close price on the last trading day on or before the target date
+          let bestPrice = 0;
+          let bestTs = -Infinity;
+          for (let i = 0; i < timestamps.length; i++) {
+            const ts = timestamps[i];
+            const close = closes[i];
+            if (close == null) continue;
+            if (ts <= targetTs + 86400 && ts > bestTs) {
+              bestTs = ts;
+              bestPrice = close;
+            }
+          }
+
+          // Yahoo returns prices in pence for UK stocks — convert to pounds
+          return [ticker, bestPrice > 0 ? bestPrice / 100 : 0];
+        } catch (error) {
+          console.error(`Error fetching historical ${ticker}:`, error);
+          return [ticker, 0];
         }
+      })
+    );
 
-        // Yahoo returns prices in pence for UK stocks — convert to pounds
-        prices[ticker] = bestPrice > 0 ? bestPrice / 100 : 0;
-      } catch (error) {
-        console.error(`Error fetching historical ${ticker}:`, error);
-        prices[ticker] = 0;
-      }
-    }
-
-    return NextResponse.json(prices);
+    return NextResponse.json(Object.fromEntries(entries));
   } catch (error) {
     console.error('Error in historical-prices API:', error);
     return NextResponse.json({ error: 'Failed to fetch historical prices' }, { status: 500 });

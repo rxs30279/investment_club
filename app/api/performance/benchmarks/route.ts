@@ -34,7 +34,10 @@ async function fetchDailyCloses(
     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}` +
     `?period1=${fromTimestamp}&period2=${toTimestamp}&interval=1d`;
 
-  const res = await fetch(url, { headers: YAHOO_HEADERS });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const res = await fetch(url, { signal: controller.signal, headers: YAHOO_HEADERS });
+  clearTimeout(timeoutId);
   if (!res.ok) throw new Error(`Yahoo Finance error for ${ticker}: ${res.status}`);
 
   const json = await res.json();
