@@ -26,6 +26,15 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <noscript>
+          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#111827', color: '#fff', fontFamily: 'sans-serif', textAlign: 'center', padding: '2rem' }}>
+            <div>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔒</div>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>JavaScript Required</h1>
+              <p style={{ color: '#9ca3af' }}>Please enable JavaScript in your browser to access the MESI Investment Dashboard.</p>
+            </div>
+          </div>
+        </noscript>
         <AuthGuard>
           {children}
         </AuthGuard>
