@@ -4,15 +4,17 @@ import { useState, useEffect } from 'react';
 import Navigation from '@/components/Navigation';
 import PasswordProtect from '@/components/PasswordProtect';
 import { Transaction, Position } from '@/types';
-import { 
-  getTransactions, 
-  getHoldingsReference, 
-  calculatePositions, 
-  fetchPrices, 
+import {
+  getTransactions,
+  getHoldingsReference,
+  calculatePositions,
+  fetchPrices,
   calculatePortfolioSummary,
   saveTransactions,
   saveHolding
 } from '@/lib/portfolio';
+import { getUnitValues, fetchBenchmarkData } from '@/lib/performance';
+import { supabase } from '@/lib/supabase';
 
 // Helper for formatting
 const formatCurrency = (value: number): string => {
@@ -333,6 +335,74 @@ function ManagePageContent() {
       date: transaction.date,
     });
   };
+
+  // ── Monthly Brief generation ───────────────────────────────────────────────
+  type BriefStatus = 'idle' | 'fetching' | 'generating' | 'done' | 'error';
+  const [briefStatus, setBriefStatus] = useState<BriefStatus>('idle');
+  const [briefError,  setBriefError]  = useState<string | null>(null);
+
+  function reportMonthLabel() {
+    return new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+  function currentDateLabel() {
+    return new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  async function generateBrief() {
+    setBriefStatus('fetching');
+    setBriefError(null);
+    try {
+      const [tx, prices, unitValues] = await Promise.all([
+        getTransactions(), fetchPrices(), getUnitValues(),
+      ]);
+      const pos = await calculatePositions(tx, prices);
+      const tickers = pos.map((p: any) => p.ticker).filter(Boolean);
+
+      // Load any member-submitted articles for this month so they're included in the brief
+      const { data: reportRow } = await supabase
+        .from('monthly_reports')
+        .select('user_articles')
+        .eq('report_month', reportMonthLabel())
+        .maybeSingle();
+      const userArticles: string = reportRow?.user_articles ?? '';
+
+      const [mpRes, benchmarks] = await Promise.all([
+        fetch('/api/monthly-performance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tickers }),
+        }),
+        fetchBenchmarkData((() => {
+          const d = new Date(); d.setMonth(d.getMonth() - 3);
+          return d.toISOString().split('T')[0];
+        })()),
+      ]);
+      const monthlyPerf = mpRes.ok ? await mpRes.json() : {};
+      setBriefStatus('generating');
+      const res = await fetch('/api/monthly-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          positions: pos, monthlyPerf, unitValues,
+          ftse100: benchmarks.ftse100, ftse250: benchmarks.ftse250,
+          reportMonth: reportMonthLabel(), currentDate: currentDateLabel(),
+          userArticles,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error ?? `Request failed: ${res.status}`);
+      }
+      const { html, error: reportError, dbError } = await res.json();
+      if (reportError) throw new Error(reportError);
+      if (!html) throw new Error('No HTML content returned.');
+      if (dbError) console.warn('[monthly-brief] Report generated but DB save failed:', dbError);
+      setBriefStatus('done');
+    } catch (err) {
+      setBriefError(err instanceof Error ? err.message : String(err));
+      setBriefStatus('error');
+    }
+  }
 
   if (loading) {
     return (
@@ -735,6 +805,52 @@ function ManagePageContent() {
             <span className="text-red-400">Delete</span> to remove it entirely.{' '}
             All positions are automatically recalculated after any change. Use <span className="text-emerald-400">Sell</span> buttons to record partial sales.
           </p>
+        </div>
+
+        {/* Monthly Brief Generation */}
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-white mb-4">Monthly Intelligence Briefing</h2>
+          <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+              <div className="flex-1">
+                <p className="text-white font-medium text-sm">{reportMonthLabel()} Briefing</p>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  Generates the full 10-section AI report using live portfolio data and saves it for all members to view.
+                </p>
+                {briefStatus === 'fetching' && (
+                  <p className="text-blue-400 text-xs mt-2 flex items-center gap-2">
+                    <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                    Fetching portfolio data...
+                  </p>
+                )}
+                {briefStatus === 'generating' && (
+                  <p className="text-blue-400 text-xs mt-2 flex items-center gap-2">
+                    <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-current" />
+                    DeepSeek is writing the report — allow 3-4 minutes...
+                  </p>
+                )}
+                {briefStatus === 'done' && (
+                  <p className="text-emerald-400 text-xs mt-2">
+                    ✓ Report generated and saved. Members can view it on the Monthly Brief page.
+                  </p>
+                )}
+                {briefStatus === 'error' && briefError && (
+                  <p className="text-red-400 text-xs mt-2 break-words">✗ {briefError}</p>
+                )}
+              </div>
+              <button
+                onClick={generateBrief}
+                disabled={briefStatus === 'fetching' || briefStatus === 'generating'}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex-shrink-0 ${
+                  briefStatus === 'fetching' || briefStatus === 'generating'
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
+              >
+                {briefStatus === 'done' ? 'Regenerate' : 'Generate Brief'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

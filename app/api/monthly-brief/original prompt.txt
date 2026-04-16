@@ -1,0 +1,623 @@
+REPORT STRUCTURE:
+
+════════════════════════════════════════
+SECTION 1: THE BIG PICTURE
+════════════════════════════════════════
+
+Display a macro dashboard card row at the very top of the report.
+Show the following as individual metric tiles:
+
+🇬🇧 UK GDP [value]%
+📈 CPI [value]%
+💷 GBP/USD [value]
+📊 10yr Gilt [value]%
+⛽ Brent Crude $[value]
+🥇 Gold $[value]
+
+Below the tiles write 3-4 sentences summarising the current macro 
+environment in plain English. Address the stagflationary backdrop 
+— elevated inflation, weak or negative growth, rising gilt yields 
+and the energy situation — and what this means for UK equity 
+investors. Be honest about the difficulty of the environment 
+without being alarmist.
+
+Then display the LARGE CAP vs MID CAP INDICATOR as a distinct 
+highlighted banner tile:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📏 LARGE CAP vs MID CAP THIS YEAR
+FTSE 100 YTD: [value]%  |  FTSE 250 YTD: [value]%
+Gap: [difference]% in favour of large caps
+5-year gap: FTSE 100 +75% vs FTSE 250 +50%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Write one punchy sentence explaining what the gap means and 
+why it matters for our portfolio.
+
+No dropdown needed — keep it all top level.
+
+
+════════════════════════════════════════
+SECTION 2: ETF FLOW SIGNAL
+════════════════════════════════════════
+
+This is a new section using the JustETF data fetched above.
+Display as a clean dashboard showing where global capital is 
+flowing right now — this is one of the most reliable real-time 
+signals available to private investors.
+
+PART A — WHERE THE MONEY IS GOING
+
+Display the top 10 performing ETF themes this year as a 
+ranked table:
+
+Rank | Theme              | Category        | YTD Return | Signal
+1    | Natural Gas        | Energy Commodity| +81.5%     | 🔴 VERY HOT
+2    | Heating Oil        | Energy Commodity| +58.7%     | 🔴 VERY HOT
+3    | Brent Crude        | Energy Commodity| +52.1%     | 🔴 VERY HOT
+4    | Uranium Miners     | Nuclear Energy  | +30.6%     | 🔥 HOT
+5    | Gold               | Precious Metals | +26.3%     | 🔥 HOT
+6    | Defence (Indo-Pac) | Defence         | +34.9%     | 🔥 HOT
+7    | Silver             | Precious Metals | +24.4%     | 🟡 WARM
+8    | Rare Earth Metals  | Strategic Metals| +32.7%     | 🔥 HOT
+9    | Gold Miners        | Basic Materials | +22-27%    | 🟡 WARM
+10   | [next from data]   | [category]      | [return]   | [signal]
+
+Use 🔴 VERY HOT for >40% YTD, 🔥 HOT for 20-40%, 
+🟡 WARM for 10-20%, 🟢 COOL for <10%
+
+PART B — WHAT IS CONSPICUOUSLY ABSENT
+
+List the major themes that are NOT in the top performers — 
+this is equally important signal. Based on current data note:
+
+❌ AI/Technology ETFs — not in top performers
+   (Confirms rotation away from US tech — money moving 
+   to real assets)
+❌ Consumer ETFs — absent
+   (Confirms squeezed household spending globally)
+❌ Property/REIT ETFs — absent  
+   (Confirms rate sensitivity crushing real estate)
+❌ Clean Energy/Wind/Solar — largely absent
+   (Market choosing energy security over energy transition)
+❌ [Any other notable absences from current data]
+
+Write 2 sentences interpreting what the absent themes tell 
+us about market sentiment.
+
+PART C — PORTFOLIO ALIGNMENT CHECK
+
+This is the key analytical output of this section. Cross-
+reference the ETF flow themes against our 15 holdings and 
+produce a clear alignment table:
+
+ETF Theme       | Our Exposure        | Holdings          | Gap?
+Energy          | [% of portfolio]    | [companies]       | [yes/no]
+Precious Metals | [% of portfolio]    | [companies]       | [yes/no]
+Nuclear/Uranium | [% of portfolio]    | [companies]       | [yes/no]
+Defence         | [% of portfolio]    | [companies]       | [yes/no]
+Rare Earth/     | [% of portfolio]    | [companies]       | [yes/no]
+Strategic Metals|                     |                   |
+[Other themes]  | [% of portfolio]    | [companies]       | [yes/no]
+
+Then produce a FLOW ALIGNMENT SCORE for our portfolio:
+
+🟢 WELL ALIGNED — Portfolio has meaningful exposure to 
+   [X] of the top [Y] ETF flow themes
+🟡 PARTIALLY ALIGNED — Portfolio captures some themes 
+   but is missing [specific gaps]
+🔴 MISALIGNED — Portfolio has little exposure to current 
+   flow themes and may face headwinds
+
+Write 3-4 sentences interpreting the alignment score. Be 
+specific about which holdings are riding the flow themes 
+and which are swimming against the tide. Note whether any 
+gaps represent a deliberate club decision or an oversight 
+worth discussing at the next meeting.
+
+PART D — THE STEALTH THEMES
+
+Highlight any ETF themes in the top 50 that the club may 
+not have considered but which are gaining strong momentum. 
+Based on current data flag:
+
+⚛️ URANIUM & NUCLEAR: +30% YTD, +120%+ over 1 year
+   Why: Energy security crisis driving nuclear renaissance. 
+   UK has committed to new nuclear capacity. This is a 
+   structural multi-year theme, not a cyclical blip.
+   UK relevance: [any UK listed uranium or nuclear 
+   companies found via web search]
+
+🪨 RARE EARTH & STRATEGIC METALS: +32% YTD
+   Why: Critical minerals for defence, EV batteries and 
+   AI hardware. Geopolitical supply chain concerns driving 
+   Western demand for non-Chinese sources.
+   UK relevance: [any UK listed mining companies with 
+   rare earth exposure found via web search]
+
+🇰🇷 SOUTH KOREA TECHNOLOGY: +40% YTD, +140% over 1 year
+   Why: Korean chipmakers supplying the global AI 
+   infrastructure buildout. Less directly relevant to 
+   UK-only portfolio but signals where global growth 
+   money is flowing.
+   UK relevance: Any UK listed semiconductor or 
+   technology supply chain companies
+
+🌊 HYDROGEN: +26% YTD after years of losses
+   Why: Possible early signs of hydrogen economics 
+   improving. Worth monitoring as a longer term theme.
+   UK relevance: [any UK hydrogen companies via search]
+
+Write 2 sentences on whether any stealth themes warrant 
+discussion at the next club meeting as potential future 
+investment areas.
+
+DROPDOWN: Full methodology note:
+"ETF flow data is sourced from JustETF (justetf.com/uk) 
+which tracks over 2,000 European-listed ETFs. The best 
+performing ETF indices by YTD return act as a proxy for 
+where institutional and retail capital is flowing. This 
+is not a recommendation to invest in ETFs — we are using 
+the data purely as a signal for which sectors and themes 
+are attracting the most money globally, and cross-
+referencing that against our UK equity holdings."
+
+
+════════════════════════════════════════
+SECTION 3: THEME TRACKER
+════════════════════════════════════════
+
+This section monitors the major structural themes driving 
+UK markets. For each theme assess its current direction 
+and specific impact on our portfolio. Cross-reference with 
+the ETF Flow Signal from Section 2 where relevant.
+
+Display as a dashboard table:
+
+Theme                  | Direction       | Strength  | ETF Signal | Portfolio Impact
+───────────────────────────────────────────────────────────────────────────────────
+Energy Crisis          | 🔺 Persisting   | 🔴 High   | 🔴 #1-3    | [specific note]
+Precious Metals/Gold   | 🔺 Rising       | 🔥 Hot    | 🔴 #5,7    | [specific note]
+Nuclear Renaissance    | 🔺 Accelerating | 🔥 Hot    | 🔴 #4      | [specific note]
+M&A / Takeover Wave    | 🔺 Intensifying | 🔴 High   | N/A        | [specific note]
+Dividends & Buybacks   | ➡️ Steady       | 🟢 Strong | N/A        | [specific note]
+BOE Rate Cuts          | 🔺 Getting      | 🟡 Medium | N/A        | [specific note]
+                       |    closer       |           |            |
+Defence Spending       | 🔺 Rising       | 🔴 High   | 🔥 #6      | [specific note]
+Rare Earth/Strategic   | 🔺 Rising       | 🔥 Hot    | 🔥 #8      | [specific note]
+Metals                 |                 |           |            |
+Shareholder Activism   | 🔺 Rising       | 🟡 Medium | N/A        | [specific note]
+Labour Policy Risk     | ➡️ Watching     | 🟡 Medium | N/A        | [specific note]
+AI Disruption          | ❓ Uncertain    | 🟡 Mixed  | ❌ Absent  | [specific note]
+Foreign Buyer Interest | 🔺 Very Active  | 🔴 High   | N/A        | [specific note]
+Sterling Weakness      | ➡️ Stable       | 🟡 Medium | N/A        | [specific note]
+Clean Energy Rotation  | 🔻 Fading       | 🟢 Cool   | ❌ Absent  | [specific note]
+
+The ETF Signal column links directly to Section 2 — use 
+the rank position from the JustETF data or ❌ Absent if 
+the theme is not in the top performers.
+
+For each theme write a specific note referencing our 
+actual 15 holdings.
+
+Write 2-3 sentences below the table summarising which 
+themes are most important for our portfolio this month 
+and whether the ETF flow data is confirming or 
+contradicting the theme direction.
+
+DROPDOWN: Detailed commentary on each theme including 
+the ETF flow context:
+
+ENERGY CRISIS
+ETF signal: Energy commodity ETFs are the single 
+strongest performing category globally — natural gas 
++81%, Brent crude +52%. This is the clearest possible 
+market signal that the energy crisis is not over.
+UK portfolio context: [specific holdings and impact]
+
+PRECIOUS METALS / GOLD
+ETF signal: Gold +26%, silver +24%, gold miners +22-27%. 
+The classic stagflation and currency debasement trade is 
+very much alive. GBP-hedged gold ETFs also surging — UK 
+investors specifically are buying protection.
+UK portfolio context: [any UK mining or precious metals 
+holdings, or note the gap if none]
+
+NUCLEAR RENAISSANCE
+ETF signal: Uranium miners +30% YTD and +120%+ over 
+1 year. This is one of the strongest long-term momentum 
+trades in the entire ETF universe right now. The market 
+is pricing a sustained nuclear buildout.
+UK context: UK government has committed to new nuclear 
+capacity. Search for any UK listed companies with nuclear 
+or uranium exposure.
+Portfolio context: [holdings or gap note]
+
+M&A / TAKEOVER WAVE
+[as previous version]
+
+DIVIDENDS & BUYBACKS
+[as previous version]
+
+BANK OF ENGLAND RATE CUTS
+[as previous version]
+
+DEFENCE SPENDING
+ETF signal: Indo-Pacific defence ETF +35% YTD confirms 
+defence is a global theme not just a UK/Europe story.
+[as previous version plus ETF context]
+
+RARE EARTH & STRATEGIC METALS
+ETF signal: Rare earth/strategic metals ETF +32% YTD. 
+Critical minerals for defence hardware, AI chips and 
+clean energy — a theme with multiple strong tailwinds.
+UK context: [any UK mining companies with critical 
+minerals exposure from web search]
+
+SHAREHOLDER ACTIVISM
+[as previous version]
+
+LABOUR POLICY RISK
+[as previous version]
+
+AI DISRUPTION
+ETF signal: AI and technology ETFs are conspicuously 
+absent from the top performers — confirming the rotation 
+away from US tech into real assets. However this does 
+not mean AI is over — it means the market is currently 
+preferring physical assets over digital ones.
+[as previous version plus ETF context]
+
+FOREIGN BUYER INTEREST
+[as previous version]
+
+STERLING
+[as previous version]
+
+CLEAN ENERGY ROTATION
+ETF signal: Wind and solar ETFs are absent from top 
+performers. The market is currently choosing energy 
+security (fossil fuels, nuclear) over energy transition 
+(renewables). Hydrogen is showing early signs of life 
+at +26% YTD after years of losses — worth monitoring.
+Portfolio context: [any clean energy holdings and 
+whether their absence from ETF flows is a concern]
+
+
+════════════════════════════════════════
+SECTION 4: PORTFOLIO vs MARKET
+════════════════════════════════════════
+
+Display a performance comparison table:
+
+                    This Month    Year to Date
+Our Portfolio          X.X%          X.X%
+FTSE 100               X.X%          X.X%
+FTSE 250               X.X%          X.X%
+
+Calculate portfolio performance using weighted average of 
+individual holding price movements.
+
+Classify holdings by index membership:
+
+Our FTSE 100 holdings: [list] — avg move: X.X%
+Our FTSE 250 holdings: [list] — avg move: X.X%
+Our AIM holdings:      [list] — avg move: X.X%
+
+Also note the ETF flow alignment of this month's 
+performance — did our best performers happen to be in 
+sectors where ETF flows were strongest?
+
+Write 2-3 sentences interpreting performance including 
+whether it reflected the ETF flow themes.
+
+DROPDOWN: Full stock-by-stock breakdown:
+- Each holding, index membership, sector, ETF flow 
+  alignment (🔴/🟡/🟢 vs top ETF themes), monthly % 
+  move, portfolio contribution, one-line news note.
+  Sort by contribution best to worst.
+
+
+════════════════════════════════════════
+SECTION 5: STAR PERFORMERS & DOGS OF 
+THE MONTH
+════════════════════════════════════════
+
+Highlight any holdings that moved more than ±5%.
+Display as a card row:
+
+[Company] | [Index] | [Move]% | [One line reason] | 
+[ETF Flow Aligned? ✅ or ❌] | 📈 or 📉
+
+Note whether each mover was aligned or misaligned with 
+the ETF flow themes — this adds useful context to whether 
+the move was driven by broad market forces or was 
+stock-specific.
+
+DROPDOWN: For each notable mover:
+- Full RNS announcements from Investegate
+- Whether move looks justified or overdone
+- Director dealings or broker changes
+- Large cap / mid cap pattern fit
+- ETF flow theme connection or divergence
+- Sentiment: Reassuring / Watching Closely / Concerned
+
+
+════════════════════════════════════════
+SECTION 6: TAKEOVER WATCH
+════════════════════════════════════════
+
+PART A — MARKET BID ACTIVITY THIS MONTH
+Summarise any notable UK takeover approaches, completed 
+deals, bid rumours or activist campaigns during the month.
+Note bid premium paid and index membership of target.
+
+PART B — PORTFOLIO VULNERABILITY SCREEN
+
+Score each holding 🟢/🟡/🔴:
+- Valuation: discount to peers or intrinsic value
+- Cash generation: free cash flow vs market cap
+- Strategic assets: brands, data, infrastructure
+- Market cap: under £2bn — sweet spot for foreign buyers
+- Geographic revenue: UK-heavy — cheaper for foreign 
+  currency buyers
+- ETF flow alignment: holdings in HOT ETF themes may 
+  attract strategic buyers seeking theme exposure
+
+Display as a table:
+
+Holding | Val | Cash | Assets | Size | Geo | ETF Theme | Bid Appeal
+[Co A]  | 🟢  | 🟢   | 🟡     | 🟢   | 🟢  | 🔴 Energy | 🔴 HIGH
+[Co B]  | 🟡  | 🟡   | 🟢     | 🟡   | 🟡  | ❌ None   | 🟡 MEDIUM
+
+Note: holdings in HOT ETF themes (energy, defence, 
+nuclear, precious metals) may attract strategic acquirers 
+who want exposure to those themes — add this as a factor 
+in the bid appeal assessment.
+
+Write 2-3 sentences on bid vulnerability and whether the 
+club views it as risk or opportunity.
+
+DROPDOWN: Full M&A landscape analysis including why ETF 
+flow themes are driving strategic M&A — energy companies 
+buying energy assets, defence consolidation, nuclear 
+infrastructure investment.
+
+
+════════════════════════════════════════
+SECTION 7: SECTOR SCORECARD
+════════════════════════════════════════
+
+PART A — BACKWARD LOOKING (What happened last month)
+
+For each sector in our portfolio:
+
+[Sector] | Our holdings | Market move | Our move | 
+ETF Flow | 🟢/🔴/🟡
+
+The ETF Flow column shows whether this sector is in the 
+JustETF top performers (🔴 HOT / 🟡 WARM / ❌ COLD) — 
+this explains whether sector performance was driven by 
+broad flow momentum or stock-specific factors.
+
+DROPDOWN: Deeper sector commentary referencing both 
+market data and ETF flow context.
+
+---
+
+PART B — LARGE CAP vs MID CAP DEEP DIVE
+[as previous version — unchanged]
+
+---
+
+PART C — SECTOR COMPASS (Forward looking)
+
+Sector         | View        | Rationale         | ETF Signal | Key Risk
+Energy         | 🟢 Positive | Stagflation hedge | 🔴 #1-3    | Demand drop
+Nuclear/Utils  | 🟢 Positive | Energy security   | 🔴 #4      | Regulation
+Defence        | 🟢 Positive | Govt spending     | 🔥 #6      | Policy
+Precious Metals| 🟢 Positive | Stagflation hedge | 🔥 #5,7    | Rate cuts
+Strategic Metals| 🟡 Positive| Supply chain      | 🔥 #8      | China
+Consumer Disc. | 🔴 Negative | Squeezed HH       | ❌ Absent  | Rate cut
+Housebuilders  | 🔴 Negative | Rate sensitivity  | ❌ Absent  | Policy
+Banks          | 🟡 Neutral  | Rate tailwind vs  | N/A        | Credit
+               |             | bad debt          |            | cycle
+Healthcare     | 🟢 Positive | Defensive         | N/A        | NHS cuts
+Data/Info Svcs | 🟡 Mixed    | AI risk vs moat   | ❌ Absent  | Disruption
+Clean Energy   | 🟡 Watching | Transition vs     | ❌ Absent  | Gas price
+               |             | security trade-off|            | fall
+
+The ETF Signal column directly links the sector compass 
+to the JustETF data — making clear which views are 
+supported by real money flows and which are going 
+against the current tide.
+
+DROPDOWN: Bull and bear case for UK market. 3 points 
+each. Include a note on whether current ETF flows 
+suggest the bull or bear case is more likely.
+
+
+════════════════════════════════════════
+SECTION 8: INCOME CORNER
+════════════════════════════════════════
+
+List dividends announced or paid during the month. 
+Show upcoming ex-dividend dates. Note any cuts or 
+increases. Note any buyback programmes.
+
+Context: FTSE 100 generates ~6.5% cash yield combining 
+dividends and buybacks — compare our portfolio to this.
+
+Note whether any of our income-generating holdings are 
+in ETF flow HOT sectors — income plus theme momentum 
+is a particularly attractive combination.
+
+
+════════════════════════════════════════
+SECTION 9: ONE TO WATCH
+════════════════════════════════════════
+
+Highlight one holding deserving particular attention 
+next month. Could be because:
+- Results or trading update due
+- Strategic announcement expected
+- Significant price movement needs monitoring
+- High score on Takeover Watch vulnerability screen
+- Exposed to an accelerating Theme Tracker theme
+- Strong or weak alignment with current ETF flows
+
+Write 3-4 sentences. Balanced — flag not recommendation.
+Note index membership, theme alignment and ETF flow 
+context.
+
+
+════════════════════════════════════════
+SECTION 10: OUTLOOK
+════════════════════════════════════════
+
+MONTH AHEAD
+Write 3-4 sentences covering:
+- Key data releases due
+- What the market will be watching most closely
+- Whether stagflation looks peaking, persisting or 
+  worsening
+- Whether large cap / mid cap gap likely to narrow 
+  or widen
+- Which ETF flow themes look set to accelerate or 
+  fade in the coming month
+- Whether the current ETF flow momentum — heavily 
+  weighted to energy, metals and nuclear — looks 
+  sustainable or due a pause
+
+Summarise with WEATHER SYMBOL at 64px:
+☀️  Positive / Sunny
+⛅  Mixed / Cautious
+🌧️  Difficult / Rainy
+⛈️  Negative / Stormy
+🌤️  Improving / Brightening
+
+---
+
+YEAR AHEAD
+Write 4-5 sentences covering:
+- Interest rate trajectory
+- Whether energy crisis is structural or temporary
+- UK equity valuations vs history and global peers
+- Sectors likely to lead any recovery
+- When FTSE 250 might reassert its historical advantage
+- Whether the M&A wave is likely to continue
+- Whether current ETF flow themes — energy, nuclear, 
+  precious metals, defence — look like multi-year 
+  structural themes or shorter cycle trades
+- What would cause a rotation back into technology 
+  and growth ETFs and what that would mean for UK 
+  equity markets
+
+Summarise with WEATHER SYMBOL (same scale).
+
+DROPDOWN:
+- 3 upside surprises — one sentence each
+- 3 downside risks — one sentence each
+- Note on long-run mid-cap outperformance case
+- Note on M&A wave — structural or opportunistic
+- Note on ETF flow themes — how long could energy, 
+  nuclear and precious metals momentum last, and 
+  what historical analogues exist (e.g. 1970s 
+  commodity supercycle, post-2000 resource boom)
+
+
+════════════════════════════════════════
+FORMATTING & STYLE RULES
+════════════════════════════════════════
+
+1. Valid self-contained HTML with <details>/<summary> 
+   for all dropdowns
+
+2. All dropdowns:
+   <summary>📖 Read more — [topic]</summary>
+
+3. Colour palette — match existing website:
+   --primary:    [INJECT SITE PRIMARY COLOUR]
+   --secondary:  [INJECT SITE SECONDARY COLOUR]
+   --accent:     [INJECT SITE ACCENT COLOUR]
+   --background: [INJECT SITE BACKGROUND COLOUR]
+   --text:       [INJECT SITE TEXT COLOUR]
+
+4. Typography: [INJECT SITE FONT NAME]
+
+5. Each section: card with subtle shadow and 
+   rounded corners
+
+6. Weather symbols: 64px with bold label and 
+   one sentence caption
+
+7. Traffic lights: 🟢 🟡 🔴 inline in all tables
+
+8. ETF Flow Signal section (Section 2): use a 
+   visually distinct design — consider a dark 
+   background card to make it stand out as the 
+   key market intelligence section
+
+9. ETF Signal column in tables: use colour coding 
+   consistent with the heat signal:
+   🔴 VERY HOT = red background
+   🔥 HOT = amber background
+   🟡 WARM = yellow background
+   ❌ ABSENT = grey background
+
+10. Portfolio Alignment Score in Section 2: display 
+    as a large prominent badge — this is a key 
+    monthly headline metric
+
+11. Macro tiles: horizontal scrolling on mobile
+
+12. Large cap vs mid cap banner: contrasting 
+    background colour
+
+13. Takeover Watch: HIGH appeal in amber, LOW in 
+    green
+
+14. Entire output as single 
+    <div id="monthly-report"> block
+
+15. Missing data: [DATA NEEDED: description]
+
+16. Footer:
+    "Report generated [date] | Portfolio data: 
+    Club database | Market data: Investegate, LSE, 
+    Reuters, Yahoo Finance UK, Bank of England, ONS | 
+    ETF flow data: JustETF (justetf.com/uk) | 
+    This report is produced for club members only 
+    and does not constitute financial advice."
+
+
+════════════════════════════════════════
+TONE REMINDERS
+════════════════════════════════════════
+
+✅ Friendly, clear, accessible
+✅ Specific — real companies, real numbers
+✅ Balanced — honest about bad news, measured 
+   about good news
+✅ Forward views flagged as opinion not advice
+✅ Jargon explained inline when first used
+✅ Four analytical threads woven throughout:
+   (1) Large cap vs mid cap divergence
+   (2) Takeover and M&A landscape
+   (3) Macro theme backdrop
+   (4) ETF flow alignment — are we positioned 
+       where the money is going?
+✅ ETF flow data used as signal not gospel — 
+   it tells us where money IS going, not where 
+   it SHOULD go
+✅ Sections feel connected — cross reference 
+   ETF flows throughout
+❌ No City-speak
+❌ No unsubstantiated claims
+❌ Do not invent data — use [DATA NEEDED]
+❌ Do not treat ETF flow data as a direct 
+   recommendation — it is a sentiment and 
+   momentum signal only
+❌ Do not treat Takeover Watch as alarming — 
+   frame bid vulnerability as a normal feature 
+   of owning undervalued UK equities

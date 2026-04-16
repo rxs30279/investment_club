@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.89.0",
     "@supabase/supabase-js": "^2.100.1",
     "autoprefixer": "^10.4.27",
     "chart.js": "^4.5.1",

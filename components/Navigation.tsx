@@ -12,6 +12,7 @@ const navItems = [
 { href: '/minutes', label: 'Minutes', icon: null },
   { href: '/treasurer', label: 'Treasurer', icon: null },
   { href: '/portfolio-fees', label: 'Fees & Divs', icon: null },
+  { href: '/monthly-brief', label: 'Monthly Brief', icon: null },
   { href: '/competition', label: 'Competition', icon: null },
   { href: '/manage', label: 'Manage', icon: '⚙️' },
 ];
