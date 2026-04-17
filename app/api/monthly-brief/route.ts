@@ -10,7 +10,7 @@
 //   - UK CPI annual rate                                          — ONS generator
 //   - UK GDP quarterly growth rate                                — ONS generator
 //   - ETF flow themes (best ETFs by YTD)                         — JustETF
-//   - RNS headline index (last 30 trading days, portfolio tickers)— Investegate
+//   - RNS headline index (last 45 trading days, portfolio tickers)— Investegate
 //   - Material RNS summaries (results, trading updates, M&A etc.) — Investegate
 //   - Director/PDMR dealing summaries                             — Investegate
 //   - Dividend history (last 12 months, ex-div dates + amounts)   — Yahoo Finance
@@ -437,7 +437,7 @@ interface RnsItem { date: string; ticker: string; headline: string; url: string;
 
 // ── Shared daily-page fetcher ─────────────────────────────────────────────────
 
-function buildTradingDates(count = 30): string[] {
+function buildTradingDates(count = 45): string[] {
   const today = new Date();
   const dates: string[] = [];
   for (let d = 0; d < count * 2 && dates.length < count; d++) {
@@ -547,7 +547,7 @@ async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateDa
   ]);
 
   // ── Format: all RNS index ──────────────────────────────────────────────────
-  const rnsLines: string[] = ['=== Investegate RNS index (last 30 trading days, portfolio holdings) ===\n'];
+  const rnsLines: string[] = ['=== Investegate RNS index (last 45 trading days, portfolio holdings) ===\n'];
   if (allHits.length === 0) {
     rnsLines.push('[No announcements found for portfolio tickers in this period]');
   } else {
@@ -562,7 +562,7 @@ async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateDa
   }
 
   // ── Format: director dealings ──────────────────────────────────────────────
-  const dirLines: string[] = ['=== Director/PDMR Dealings (last 30 trading days, live summaries from Investegate) ===\n'];
+  const dirLines: string[] = ['=== Director/PDMR Dealings (last 45 trading days, live summaries from Investegate) ===\n'];
   const dirFulfilled = directorSummaries.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
   if (dirFulfilled.length === 0) {
     dirLines.push('[No director/PDMR shareholding announcements found for portfolio holdings in this period]');
@@ -575,7 +575,7 @@ async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateDa
   }
 
   // ── Format: material announcements ────────────────────────────────────────
-  const matLines: string[] = ['=== Material RNS Announcements (last 30 trading days, live summaries from Investegate) ===\n'];
+  const matLines: string[] = ['=== Material RNS Announcements (last 45 trading days, live summaries from Investegate) ===\n'];
   const matFulfilled = materialSummaries.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
   if (matFulfilled.length === 0) {
     matLines.push('[No material announcements (results, trading updates, acquisitions, etc.) found for portfolio holdings in this period]');
@@ -1102,10 +1102,10 @@ function buildPart3Message(
     'PORTFOLIO (for context):\n' + portfolioJSON + '\n\n' +
     'MACRO (for context):\n' + macroJSON + '\n\n' +
     'ETF FLOW DATA (use for sector/theme analysis in section 6):\n' + cap(etfData, 4000) + '\n\n' +
-    'RNS INDEX (all portfolio announcements, last 30 trading days — reference for sector/theme context):\n' + cap(rnsData, 2000) + '\n\n' +
-    'MATERIAL RNS (results, trading updates, acquisitions — reference for sector context):\n' + cap(materialData, 3000) + '\n\n' +
+    'RNS INDEX (all portfolio announcements, last 45 trading days — reference for sector/theme context):\n' + cap(rnsData, 2000) + '\n\n' +
+    'MATERIAL RNS (results, trading updates, acquisitions, capital raises, board changes — PRIMARY SOURCE for section 8 Results & Corporate Actions, also reference for sector context):\n' + cap(materialData, 8000) + '\n\n' +
     'DIVIDEND DATA (live ex-dividend dates and amounts from Yahoo Finance — last 12 months per holding):\n' + cap(dividendData, 4000) + '\n\n' +
-    'DIRECTOR DEALINGS (live from Investegate — last 30 trading days, portfolio holdings only, with AI summaries):\n' + cap(directorData, 5000) + '\n\n' +
+    'DIRECTOR DEALINGS (live from Investegate — last 45 trading days, portfolio holdings only, with AI summaries):\n' + cap(directorData, 5000) + '\n\n' +
     'For all live data above use it directly — do not substitute training knowledge where live data is present.\n\n' +
     'OUTPUT: This is a continuation — do NOT start a new <div id="monthly-report"> or repeat any earlier sections. ' +
     'Output sections 6–9 only, then the footer paragraph, then close with </div>. No preamble. Output only the HTML.\n\n' +
