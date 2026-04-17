@@ -960,121 +960,157 @@ const STYLE_BLOCK =
   'TONE: Friendly knowledgeable friend, not City broker. Plain English. Jargon explained inline. ' +
   'Four threads throughout: (1) large/mid-cap gap (2) M&A landscape (3) macro backdrop (4) ETF flow alignment. Forward views = opinion not advice.';
 
-// ── Part 1 prompt: sections 1–5 ───────────────────────────────────────────────
+// ── Part 1 prompt: Contents list + sections 1–3 (Market Overview) ─────────────
 //
-// Covers macro, ETF flow, themes, portfolio performance, and star performers.
+// Part One of the report: macro big picture, ETF flows, and outlook.
 
 function buildPart1Message(
   portfolioJSON: string,
   macroJSON: string,
-  unitValueStats: string,
   etfData: string,
-  rnsData: string,
-  materialData: string,
   reportMonth: string,
   currentDate: string,
 ): string {
   const sections = [
-    '1. THE BIG PICTURE - Macro tile row (GDP, CPI, GBP/USD, 10yr Gilt, Brent, Gold). 3-4 sentence macro summary. FTSE 100 vs FTSE 250 YTD banner with gap analysis.',
-    '2. ETF FLOW SIGNAL - Top 10 ETF themes table (Rank|Theme|Category|YTD|Signal: >40% VERY HOT, 20-40% HOT, 10-20% WARM, <10% COOL). Absent themes. Portfolio alignment table + FLOW ALIGNMENT SCORE badge. Stealth themes note. Dropdown: methodology.',
-    '3. THEME TRACKER - Table: Theme|Direction|Strength|ETF Signal|Portfolio Impact. Cover: Energy, Gold/Metals, Nuclear, M&A, Dividends, BOE Rates, Defence, Rare Earths, Activism, Labour Risk, AI, Foreign Buyers, Sterling, Clean Energy. Dropdown: detail on each.',
-    '4. PORTFOLIO vs MARKET - Performance table (Portfolio/FTSE100/FTSE250 x This Month/YTD). For the MESI portfolio row use FUND PERFORMANCE monthly_return_pct (this month) and ytd_return_pct (YTD) — these are the authoritative unit-value figures. Do NOT recalculate portfolio return from individual stock moves. For FTSE 100 and FTSE 250 use the monthly and YTD figures from MACRO. Index membership breakdown (FTSE100 holdings / FTSE250 holdings / AIM holdings with average move for each group). Dropdown: stock-by-stock detail using monthly_change_pct per holding (contribution, news note from MATERIAL RNS, ETF alignment), sorted best to worst contribution.',
+    'CONTENTS LIST — Before any sections, render a compact styled dark-theme contents panel. ' +
+    'Show two parts clearly:\n' +
+    '  PART ONE: MARKET OVERVIEW — 1. The Big Picture  2. ETF Flow Signal  3. Outlook\n' +
+    '  PART TWO: CLUB ASSETS & THE MARKET — 4. Press Coverage  5. Portfolio vs Market  6. Sector Scorecard & Theme Tracker  7. Income Corner  8. Results & Corporate Actions  9. One to Watch\n' +
+    'Style as a card with two clearly labelled rows. No anchor links needed — plain text is fine.',
+
+    '1. THE BIG PICTURE — Macro tile row (GDP, CPI, GBP/USD, 10yr Gilt, Brent, Gold). 3–4 sentence macro summary. FTSE 100 vs FTSE 250 YTD banner with gap analysis.',
+
+    '2. ETF FLOW SIGNAL — Top 10 ETF themes table (Rank|Theme|Category|YTD|Signal: >40% VERY HOT, 20–40% HOT, 10–20% WARM, <10% COOL). Absent themes. Portfolio alignment table + FLOW ALIGNMENT SCORE badge. Stealth themes note. Dropdown: methodology.',
+
+    '3. OUTLOOK — Month ahead: 3–4 sentences + weather symbol 64px. Year ahead: 4–5 sentences + weather symbol. Dropdown: 3 upside surprises, 3 downside risks, mid-cap case, M&A outlook, ETF flow analogues.',
   ].join('\n\n');
 
   return (
     'Today is ' + currentDate + '. You are writing PART 1 of 3 of the MESI Investment Club Monthly Intelligence Briefing for ' + reportMonth + '.\n\n' +
-    'PORTFOLIO:\n' + portfolioJSON + '\n\n' +
-    'FUND PERFORMANCE:\n' + unitValueStats + '\n\n' +
+    'PORTFOLIO (for context):\n' + portfolioJSON + '\n\n' +
     'MACRO (Yahoo Finance prices pre-fetched; other fields use your knowledge):\n' + macroJSON + '\n\n' +
     'ETF FLOW DATA (use below if present, otherwise use your knowledge):\n' + cap(etfData, 6000) + '\n\n' +
-    'RNS INDEX (all portfolio announcements, last 30 trading days — headline reference only):\n' + cap(rnsData, 3000) + '\n\n' +
-    'MATERIAL RNS (results, trading updates, acquisitions, capital raises, board changes — live AI summaries from Investegate):\n' + cap(materialData, 5000) + '\n\n' +
     'Use your training knowledge for macro figures not provided above. Use [DATA NEEDED] where genuinely uncertain.\n\n' +
-    'OUTPUT: Begin with <div id="monthly-report">. Output sections 1–4 only. ' +
+    'OUTPUT: Begin with <div id="monthly-report">. Output the Contents List then sections 1–3 only. ' +
     'Do NOT add a footer or closing </div> — parts 2 and 3 follow immediately. No preamble. Output only the HTML.\n\n' +
     STYLE_BLOCK + '\n\n' +
-    'SECTIONS (write all 4):\n\n' + sections
+    'SECTIONS (write Contents List then all 3 sections):\n\n' + sections
   );
 }
 
-// ── Part 2 prompt: sections 6–9 ──────────────────────────────────────────────
+// ── Part 2 prompt: sections 4–5 (Press Coverage + Portfolio vs Market) ────────
 //
-// Covers results & corporate actions, takeover watch, sector scorecard,
-// and income corner. Has the heaviest RNS and dividend data.
+// Opens Part Two of the report. Has press news, unit value performance, and
+// stock-by-stock detail from material RNS.
 
 function buildPart2Message(
   portfolioJSON: string,
   macroJSON: string,
-  rnsData: string,
+  unitValueStats: string,
   materialData: string,
-  dividendData: string,
-  reportMonth: string,
-  currentDate: string,
-): string {
-  const sections = [
-    '5. STAR PERFORMERS & DOGS - Cards for holdings that moved more than 5%: Company|Index|Move%|Reason|ETF Aligned?. Dropdown: detail per mover. Reference MATERIAL RNS and RNS INDEX where relevant.',
-    '6. RESULTS & CORPORATE ACTIONS - Use the MATERIAL RNS DATA provided. For each item: Ticker | Category | Date | Key numbers from summary | Verdict (Beat/In-line/Miss/Transformative). Group by category. Dropdown: full summary per item. If no material announcements, say so.',
-    '7. TAKEOVER WATCH - Month UK bid activity summary. Vulnerability table per holding: Val|Cash|Assets|Size|Geo|ETF Theme|Bid Appeal. Reference any acquisition RNS. Dropdown: M&A landscape.',
-    '8. SECTOR SCORECARD - Backward table (Sector|Holdings|Market move|Our move|ETF Flow). FTSE100 vs FTSE250 deep dive. Forward compass (Sector|View|Rationale|ETF Signal|Key Risk). Dropdown: bull/bear case 3 points each.',
-    '9. INCOME CORNER - Use the DIVIDEND DATA provided (live ex-dividend dates and amounts from Yahoo Finance). Table: Ticker | Company | Ex-Div Date | Amount (p) | Annual Yield est. | Vs FTSE100 avg. Show all holdings with dividend data sorted by ex-div date. Call out dividends paid this month, upcoming ex-div dates in next 30 days, any cuts or increases vs prior year, and buybacks. Compare portfolio income yield to FTSE100 benchmark: ~3.5% dividend yield / ~6.5% total cash yield. Dropdown: dividend history per holding.',
-  ].join('\n\n');
-
-  return (
-    'Today is ' + currentDate + '. You are writing PART 2 of 3 of the MESI Investment Club Monthly Intelligence Briefing for ' + reportMonth + '.\n\n' +
-    'PORTFOLIO (for context):\n' + portfolioJSON + '\n\n' +
-    'MACRO (for context):\n' + macroJSON + '\n\n' +
-    'RNS INDEX (all portfolio announcements, last 30 trading days — headline reference for section 5):\n' + cap(rnsData, 3000) + '\n\n' +
-    'MATERIAL RNS (results, trading updates, acquisitions, capital raises, board changes — live AI summaries from Investegate):\n' + cap(materialData, 8000) + '\n\n' +
-    'DIVIDEND DATA (live ex-dividend dates and amounts from Yahoo Finance — last 12 months per holding):\n' + cap(dividendData, 4000) + '\n\n' +
-    'For all live data above use it directly — do not substitute training knowledge where live data is present.\n\n' +
-    'OUTPUT: This is a continuation — do NOT start a new <div id="monthly-report"> or repeat any earlier sections. ' +
-    'Output sections 5–9 only. Do NOT add a footer or closing </div> — part 3 follows immediately. No preamble. Output only the HTML.\n\n' +
-    STYLE_BLOCK + '\n\n' +
-    'SECTIONS (write all 5):\n\n' + sections
-  );
-}
-
-// ── Part 3 prompt: sections 10–13 ────────────────────────────────────────────
-//
-// Covers director dealings, one to watch, outlook, and press coverage.
-// Closes the report div and adds the footer.
-
-function buildPart3Message(
-  portfolioJSON: string,
-  macroJSON: string,
-  directorData: string,
   pressNews: string,
   userArticles: string,
   reportMonth: string,
   currentDate: string,
 ): string {
   const memberBlock = userArticles?.trim()
-    ? 'MEMBER READING LIST (articles pasted in by club members — feature these prominently in section 13):\n' + userArticles + '\n\n'
+    ? 'MEMBER READING LIST (articles shared by club members — format: [Contributor Name] "Title" then body; feature these prominently in section 4):\n' + userArticles + '\n\n'
     : '';
 
   const sections = [
-    '10. DIRECTOR DEALINGS - Use the DIRECTOR DEALINGS DATA provided (live from Investegate). Table: Date | Ticker | Director/Role | Buy/Sell | Shares | Price (p) | Value £ | Signal. If no dealings say so clearly. Interpret sentiment: buying = bullish insider signal, selling = neutral unless large % of holding. Dropdown: context on each dealing.',
-    '11. ONE TO WATCH - One holding needing attention next month. 3-4 sentences. Index, theme, ETF flow context.',
-    '12. OUTLOOK - Month ahead: 3-4 sentences + weather symbol 64px. Year ahead: 4-5 sentences + weather symbol. Dropdown: 3 upside surprises, 3 downside risks, mid-cap case, M&A outlook, ETF flow analogues.',
-    '13. PRESS COVERAGE — Use the PRESS NEWS data and MEMBER READING LIST below. ' +
-      'Table: Date | Company | Headline | Source | Impact (Positive / Negative / Neutral). ' +
-      'Select the 10–15 most significant stories; prioritise FT and Bloomberg sources. ' +
-      'If MEMBER READING LIST articles are present, render them in a separate highlighted card titled "Members\' Reading List" immediately below the main table, with a short 2-sentence note on why each article is relevant to the portfolio. ' +
-      'Dropdown: one paragraph analysis per key article explaining what it means for the holding.',
+    'PART TWO DIVIDER — Before section 4, render a prominent full-width section divider card ' +
+    'labelled "PART TWO: CLUB ASSETS & THE MARKET" with a short subtitle "How our holdings relate to current market conditions." ' +
+    'Style it as a dark card with an emerald accent border.',
+
+    '4. PRESS COVERAGE — Use the PRESS NEWS data and MEMBER READING LIST below. ' +
+    'Table: Date | Company | Headline | Source | Impact (Positive / Negative / Neutral). ' +
+    'Select the 10–15 most significant stories; prioritise FT and Bloomberg sources. ' +
+    'If MEMBER READING LIST articles are present, render them in a separate highlighted card titled "Members\' Reading List" ' +
+    'immediately below the main table, with a short 2-sentence note on why each article is relevant to the portfolio. ' +
+    'Dropdown: one paragraph analysis per key article explaining what it means for the holding.',
+
+    '5. PORTFOLIO vs MARKET — Performance table (Portfolio/FTSE100/FTSE250 x This Month/YTD). ' +
+    'Label the "This Month" column as "This Month (' + reportMonth.split(' ')[0] + ')" and show the exact date window from FUND PERFORMANCE (monthly_measured_from to monthly_measured_to) as a small subtitle beneath the column header so readers know the precise period covered. ' +
+    'For the MESI portfolio row use FUND PERFORMANCE monthly_return_pct (this month) and ytd_return_pct (YTD) — ' +
+    'these are the authoritative unit-value figures. Do NOT recalculate portfolio return from individual stock moves. ' +
+    'For FTSE 100 and FTSE 250 use the monthly and YTD figures from MACRO. ' +
+    'Immediately below the performance table, add a small amber-coloured notice box explaining: the MESI portfolio return is based on club unit values which are calculated at the end of each month, so when this report is generated mid-month the portfolio figure covers a completed period while the FTSE figures are live — readers should refer to the Holdings page for the most up-to-date portfolio valuation. ' +
+    'Index membership breakdown (FTSE100 holdings / FTSE250 holdings / AIM holdings with average move for each group). ' +
+    'Dropdown: stock-by-stock detail using monthly_change_pct per holding (contribution, news note from MATERIAL RNS, ETF alignment), sorted best to worst contribution.',
+  ].join('\n\n');
+
+  return (
+    'Today is ' + currentDate + '. You are writing PART 2 of 3 of the MESI Investment Club Monthly Intelligence Briefing for ' + reportMonth + '.\n\n' +
+    'PORTFOLIO:\n' + portfolioJSON + '\n\n' +
+    'FUND PERFORMANCE:\n' + unitValueStats + '\n\n' +
+    'MACRO (for context):\n' + macroJSON + '\n\n' +
+    'MATERIAL RNS (results, trading updates, acquisitions, capital raises, board changes — live AI summaries from Investegate):\n' + cap(materialData, 6000) + '\n\n' +
+    'PRESS NEWS (Google News RSS, searched by portfolio company name — use for section 4):\n' + cap(pressNews, 6000) + '\n\n' +
+    memberBlock +
+    'For all live data above use it directly — do not substitute training knowledge where live data is present.\n\n' +
+    'OUTPUT: This is a continuation — do NOT start a new <div id="monthly-report"> or repeat any earlier sections. ' +
+    'Output the Part Two divider then sections 4–5 only. Do NOT add a footer or closing </div> — part 3 follows immediately. No preamble. Output only the HTML.\n\n' +
+    STYLE_BLOCK + '\n\n' +
+    'SECTIONS (write Part Two divider then sections 4 and 5):\n\n' + sections
+  );
+}
+
+// ── Part 3 prompt: sections 6–9 + footer ──────────────────────────────────────
+//
+// Closes the report. Merged Sector Scorecard & Theme Tracker, Income Corner,
+// Director Dealings, One to Watch. Closes the report div.
+
+function buildPart3Message(
+  portfolioJSON: string,
+  macroJSON: string,
+  etfData: string,
+  rnsData: string,
+  materialData: string,
+  dividendData: string,
+  directorData: string,
+  reportMonth: string,
+  currentDate: string,
+): string {
+  const sections = [
+    '6. SECTOR SCORECARD & THEME TRACKER — Merged section combining sector performance with theme analysis. ' +
+    'Backward table (Sector|Holdings|Market move|Our move|ETF Flow). FTSE100 vs FTSE250 deep dive. ' +
+    'Forward compass (Sector|View|Rationale|ETF Signal|Key Risk). ' +
+    'Then a Theme table: Theme|Direction|Strength|ETF Signal|Portfolio Impact — cover: Energy, Gold/Metals, Nuclear, M&A, Dividends, BOE Rates, Defence, Rare Earths, Activism, Labour Risk, AI, Foreign Buyers, Sterling, Clean Energy. ' +
+    'Dropdown: bull/bear case 3 points each per sector, and detail on each theme.',
+
+    '7. INCOME CORNER — Use the DIVIDEND DATA provided (live ex-dividend dates and amounts from Yahoo Finance). ' +
+    'Table: Ticker | Company | Ex-Div Date | Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
+    'Show all holdings with dividend data sorted by ex-div date. ' +
+    'Call out dividends paid this month, upcoming ex-div dates in next 30 days, any cuts or increases vs prior year, and buybacks. ' +
+    'Compare portfolio income yield to FTSE100 benchmark: ~3.5% dividend yield / ~6.5% total cash yield. ' +
+    'Dropdown: dividend history per holding.',
+
+    '8. RESULTS & CORPORATE ACTIONS — Two sub-sections in one card.\n' +
+    'Sub-section A — Results & Corporate Actions: Use the MATERIAL RNS DATA provided. ' +
+    'For each item: Ticker | Category | Date | Key numbers from summary | Verdict (Beat/In-line/Miss/Transformative). ' +
+    'Group by category. Dropdown: full summary per item. If no material announcements, say so.\n' +
+    'Sub-section B — Director Dealings: Use the DIRECTOR DEALINGS DATA provided (live from Investegate). ' +
+    'Table: Date | Ticker | Director/Role | Buy/Sell | Shares | Price (p) | Value £ | Signal. ' +
+    'If no dealings say so clearly. Interpret sentiment: buying = bullish insider signal, selling = neutral unless large % of holding. ' +
+    'Dropdown: context on each dealing.',
+
+    '9. ONE TO WATCH — One holding needing attention next month. 3–4 sentences. Index, theme, ETF flow context.',
   ].join('\n\n');
 
   return (
     'Today is ' + currentDate + '. You are writing PART 3 of 3 of the MESI Investment Club Monthly Intelligence Briefing for ' + reportMonth + '.\n\n' +
     'PORTFOLIO (for context):\n' + portfolioJSON + '\n\n' +
     'MACRO (for context):\n' + macroJSON + '\n\n' +
+    'ETF FLOW DATA (use for sector/theme analysis in section 6):\n' + cap(etfData, 4000) + '\n\n' +
+    'RNS INDEX (all portfolio announcements, last 30 trading days — reference for sector/theme context):\n' + cap(rnsData, 2000) + '\n\n' +
+    'MATERIAL RNS (results, trading updates, acquisitions — reference for sector context):\n' + cap(materialData, 3000) + '\n\n' +
+    'DIVIDEND DATA (live ex-dividend dates and amounts from Yahoo Finance — last 12 months per holding):\n' + cap(dividendData, 4000) + '\n\n' +
     'DIRECTOR DEALINGS (live from Investegate — last 30 trading days, portfolio holdings only, with AI summaries):\n' + cap(directorData, 5000) + '\n\n' +
-    'PRESS NEWS (Google News RSS, searched by portfolio company name — use for section 13):\n' + cap(pressNews, 6000) + '\n\n' +
-    memberBlock +
-    'For all director dealings data use the live data above — do not substitute training knowledge where live data is present.\n\n' +
+    'For all live data above use it directly — do not substitute training knowledge where live data is present.\n\n' +
     'OUTPUT: This is a continuation — do NOT start a new <div id="monthly-report"> or repeat any earlier sections. ' +
-    'Output sections 10–13 only, then the footer paragraph, then close with </div>. No preamble. Output only the HTML.\n\n' +
+    'Output sections 6–9 only, then the footer paragraph, then close with </div>. No preamble. Output only the HTML.\n\n' +
     STYLE_BLOCK + '\n\n' +
-    'FOOTER (after section 13): Report generated ' + currentDate +
+    'FOOTER (after section 9): Report generated ' + currentDate +
     ' | Portfolio data: Club database | Market data: Investegate, Yahoo Finance UK, Bank of England, ONS' +
     ' | ETF flow data: JustETF (justetf.com/uk) | RNS, Results & Director Dealings: Investegate' +
     ' | Press coverage: Google News | This report is produced for club members only and does not constitute financial advice.\n\n' +
@@ -1228,23 +1264,23 @@ export async function POST(request: NextRequest) {
 
   try {
     // Three sequential DeepSeek calls so none hits the 8192-token output cap.
-    // Part 1: sections 1–5  (opens the report div, no closing tag)
-    // Part 2: sections 6–9  (heavy RNS + dividend data)
-    // Part 3: sections 10–13 + footer + closing </div>
+    // Part 1: Contents list + sections 1–3 (Market Overview — macro, ETF flow, outlook)
+    // Part 2: sections 4–5  (Press Coverage + Portfolio vs Market)
+    // Part 3: sections 6–9 + footer + closing </div>  (Sector/Theme, Income, Director Dealings, One to Watch)
     // The three HTML fragments are concatenated before saving.
 
     const part1Message = buildPart1Message(
-      portfolioJSON, macroJSON, unitValueStats, etfData,
-      rnsData, materialData,
+      portfolioJSON, macroJSON, etfData,
       body.reportMonth, body.currentDate,
     );
     const part2Message = buildPart2Message(
-      portfolioJSON, macroJSON, rnsData, materialData, dividendData,
+      portfolioJSON, macroJSON, unitValueStats, materialData,
+      pressNews, body.userArticles ?? '',
       body.reportMonth, body.currentDate,
     );
     const part3Message = buildPart3Message(
-      portfolioJSON, macroJSON, directorData,
-      pressNews, body.userArticles ?? '',
+      portfolioJSON, macroJSON, etfData, rnsData, materialData,
+      dividendData, directorData,
       body.reportMonth, body.currentDate,
     );
 

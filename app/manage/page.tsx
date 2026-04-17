@@ -358,13 +358,17 @@ function ManagePageContent() {
       const pos = await calculatePositions(tx, prices);
       const tickers = pos.map((p: any) => p.ticker).filter(Boolean);
 
-      // Load any member-submitted articles for this month so they're included in the brief
-      const { data: reportRow } = await supabase
-        .from('monthly_reports')
-        .select('user_articles')
-        .eq('report_month', reportMonthLabel())
-        .maybeSingle();
-      const userArticles: string = reportRow?.user_articles ?? '';
+      // Load member articles from the last 2 months for inclusion in the brief
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - 2);
+      const { data: articlesData } = await supabase
+        .from('member_articles')
+        .select('contributor_name, title, body')
+        .gte('added_at', cutoff.toISOString())
+        .order('added_at', { ascending: false });
+      const userArticles: string = articlesData?.length
+        ? articlesData.map((a: any) => `[${a.contributor_name}] "${a.title}"\n${a.body}`).join('\n\n---\n\n')
+        : '';
 
       const [mpRes, benchmarks] = await Promise.all([
         fetch('/api/monthly-performance', {
@@ -815,7 +819,7 @@ function ManagePageContent() {
               <div className="flex-1">
                 <p className="text-white font-medium text-sm">{reportMonthLabel()} Briefing</p>
                 <p className="text-gray-500 text-xs mt-0.5">
-                  Generates the full 10-section AI report using live portfolio data and saves it for all members to view.
+                  Generates the full AI report using live portfolio data and saves it for all members to view.
                 </p>
                 {briefStatus === 'fetching' && (
                   <p className="text-blue-400 text-xs mt-2 flex items-center gap-2">

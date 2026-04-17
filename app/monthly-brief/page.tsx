@@ -4,17 +4,33 @@ import { useState, useEffect, useRef } from 'react';
 import Navigation from '@/components/Navigation';
 import { supabase } from '@/lib/supabase';
 
+// Migration required in Supabase:
+//   CREATE TABLE member_articles (
+//     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+//     contributor_name text NOT NULL,
+//     title text NOT NULL,
+//     body text NOT NULL,
+//     added_at timestamptz DEFAULT now() NOT NULL
+//   );
+
 function reportMonthLabel() {
   return new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+}
+
+function twoMonthsAgoIso() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 2);
+  return d.toISOString();
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface MemberArticle {
-  id:      string;
-  text:    string;   // pasted URL or article text/excerpt
-  label:   string;   // optional short label e.g. "Re: Rolls-Royce"
-  addedAt: string;   // ISO date string
+  id:               string;
+  contributor_name: string;
+  title:            string;
+  body:             string;
+  added_at:         string; // ISO timestamp from Supabase
 }
 
 // ── Report frame — renders AI-generated HTML in isolation ─────────────────────
@@ -50,28 +66,39 @@ function ReportFrame({ html }: { html: string }) {
   );
 }
 
-// ── Reading List panel ────────────────────────────────────────────────────────
+// ── Members' Reading List panel ───────────────────────────────────────────────
 
 function ReadingList({
   articles,
   onAdd,
   onDelete,
   saving,
+  saveError,
 }: {
   articles: MemberArticle[];
-  onAdd: (text: string, label: string) => void;
+  onAdd: (name: string, title: string, body: string) => void;
   onDelete: (id: string) => void;
   saving: boolean;
+  saveError: string | null;
 }) {
-  const [text,  setText]  = useState('');
-  const [label, setLabel] = useState('');
+  const [name,  setName]  = useState('');
+  const [title, setTitle] = useState('');
+  const [body,  setBody]  = useState('');
+  const [open,  setOpen]  = useState(false);
 
   function submit() {
-    const t = text.trim();
-    if (!t) return;
-    onAdd(t, label.trim());
-    setText('');
-    setLabel('');
+    if (!name.trim() || !title.trim() || !body.trim()) return;
+    onAdd(name.trim(), title.trim(), body.trim());
+    setName('');
+    setTitle('');
+    setBody('');
+    setOpen(false);
+  }
+
+  function formatDate(iso: string) {
+    try {
+      return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return iso; }
   }
 
   return (
@@ -80,70 +107,106 @@ function ReadingList({
         <div>
           <h2 className="text-lg font-semibold text-white">Members&apos; Reading List</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Paste articles, URLs or excerpts here. They will be featured in Section 13 of the next generated brief.
+            Share articles with the club. Articles are kept for two months and featured in the next generated briefing.
           </p>
         </div>
-        <span className="text-xs text-gray-600">{articles.length} saved</span>
-      </div>
-
-      {/* Add form */}
-      <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 mb-4">
-        <div className="mb-3">
-          <input
-            type="text"
-            placeholder="Short label — e.g. Re: Rolls-Royce (optional)"
-            value={label}
-            onChange={e => setLabel(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-emerald-600"
-          />
-        </div>
-        <textarea
-          placeholder="Paste a URL, article headline, or excerpt here..."
-          value={text}
-          onChange={e => setText(e.target.value)}
-          rows={4}
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 text-sm resize-y focus:outline-none focus:border-emerald-600"
-        />
-        <div className="flex justify-end mt-2">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-600">{articles.length} article{articles.length !== 1 ? 's' : ''}</span>
           <button
-            onClick={submit}
-            disabled={!text.trim() || saving}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm font-medium transition-colors"
+            onClick={() => setOpen(v => !v)}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors"
           >
-            {saving ? 'Saving…' : 'Add to Reading List'}
+            {open ? 'Cancel' : '+ Add Article'}
           </button>
         </div>
       </div>
 
-      {/* Saved articles */}
+      {/* Add form */}
+      {open && (
+        <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 mb-5">
+          <div className="space-y-3">
+            <input
+              type="text"
+              placeholder="Your name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-emerald-600"
+            />
+            <input
+              type="text"
+              placeholder="Article title"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-emerald-600"
+            />
+            <textarea
+              placeholder="Paste the article text, excerpt, or URL here..."
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              rows={6}
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 text-sm resize-y focus:outline-none focus:border-emerald-600"
+            />
+          </div>
+          {saveError && (
+            <p className="mt-2 text-red-400 text-xs">{saveError}</p>
+          )}
+          <div className="flex justify-end mt-3">
+            <button
+              onClick={submit}
+              disabled={!name.trim() || !title.trim() || !body.trim() || saving}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              {saving ? 'Saving…' : 'Submit Article'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Article list */}
       {articles.length === 0 ? (
         <div className="text-center py-8 text-gray-600 text-sm border border-dashed border-gray-800 rounded-xl">
-          No articles saved yet for {reportMonthLabel()}.
+          No articles shared yet. Be the first to add one.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {articles.map(article => (
-            <div
+            <details
               key={article.id}
-              className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 flex gap-3"
+              className="bg-gray-900/50 border border-gray-800 rounded-xl group"
             >
-              <div className="flex-1 min-w-0">
-                {article.label && (
-                  <p className="text-emerald-400 text-xs font-medium mb-1">{article.label}</p>
-                )}
-                <p className="text-gray-300 text-sm break-words whitespace-pre-wrap leading-relaxed">
-                  {article.text}
+              <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none select-none">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-emerald-400 text-xs font-semibold flex-shrink-0">
+                    {article.contributor_name}
+                  </span>
+                  <span className="text-gray-300 text-sm truncate">{article.title}</span>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+                  <span className="text-gray-600 text-xs hidden sm:block">
+                    {formatDate(article.added_at)}
+                  </span>
+                  <button
+                    onClick={e => { e.preventDefault(); onDelete(article.id); }}
+                    className="text-gray-600 hover:text-red-400 transition-colors text-xs"
+                    title="Remove"
+                  >
+                    ✕
+                  </button>
+                  <svg
+                    className="w-3.5 h-3.5 text-gray-500 transition-transform group-open:rotate-180"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </summary>
+              <div className="px-4 pb-4 pt-1 border-t border-gray-800">
+                <p className="text-gray-400 text-xs mb-2">{formatDate(article.added_at)}</p>
+                <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed break-words">
+                  {article.body}
                 </p>
-                <p className="text-gray-600 text-xs mt-2">{article.addedAt}</p>
               </div>
-              <button
-                onClick={() => onDelete(article.id)}
-                className="text-gray-600 hover:text-red-400 transition-colors text-xs flex-shrink-0 mt-0.5"
-                title="Remove"
-              >
-                ✕
-              </button>
-            </div>
+            </details>
           ))}
         </div>
       )}
@@ -154,41 +217,38 @@ function ReadingList({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function MonthlyBriefPage() {
-  const [html,     setHtml]     = useState<string>('');
-  const [loading,  setLoading]  = useState(true);
-  const [articles, setArticles] = useState<MemberArticle[]>([]);
-  const [saving,   setSaving]   = useState(false);
+  const [html,        setHtml]       = useState<string>('');
+  const [loading,     setLoading]    = useState(true);
+  const [articles,    setArticles]   = useState<MemberArticle[]>([]);
+  const [saving,      setSaving]     = useState(false);
+  const [saveError,   setSaveError]  = useState<string | null>(null);
+  const [tableError,  setTableError] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
-
-  // Serialise/deserialise articles to/from a single TEXT column in Supabase.
-  // Run this migration if not done:
-  //   ALTER TABLE monthly_reports ADD COLUMN IF NOT EXISTS user_articles TEXT;
-
-  function articlesToText(arts: MemberArticle[]): string {
-    return arts
-      .map(a => (a.label ? `[${a.label}]\n` : '') + a.text)
-      .join('\n\n---\n\n');
-  }
-
-  function parseStoredArticles(raw: string | null | undefined): MemberArticle[] {
-    if (!raw) return [];
-    // stored as JSON array (new format)
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed as MemberArticle[];
-    } catch { /* fall through to legacy plain text */ }
-    return [];
-  }
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
+      // Load the current month's report
+      const { data: report } = await supabase
         .from('monthly_reports')
-        .select('html, user_articles')
+        .select('html')
         .eq('report_month', reportMonthLabel())
         .maybeSingle();
-      if (data?.html) setHtml(data.html);
-      setArticles(parseStoredArticles(data?.user_articles));
+      if (report?.html) setHtml(report.html);
+
+      // Load member articles from the last 2 months; also delete expired ones
+      const cutoff = twoMonthsAgoIso();
+      await supabase.from('member_articles').delete().lt('added_at', cutoff);
+      const { data: arts, error: artsError } = await supabase
+        .from('member_articles')
+        .select('*')
+        .gte('added_at', cutoff)
+        .order('added_at', { ascending: false });
+      if (artsError) {
+        console.error('[member_articles] load error:', artsError.message);
+        setTableError(true);
+      }
+      setArticles((arts ?? []) as MemberArticle[]);
+
       setLoading(false);
     }
     load();
@@ -200,48 +260,31 @@ export default function MonthlyBriefPage() {
     }
   }, [html]);
 
-  async function persistArticles(updated: MemberArticle[]) {
+  async function handleAdd(name: string, title: string, body: string) {
     setSaving(true);
+    setSaveError(null);
     try {
-      const stored = JSON.stringify(updated);
-      // Upsert: create the row for this month if it doesn't exist yet
-      const { data: existing } = await supabase
-        .from('monthly_reports')
-        .select('id')
-        .eq('report_month', reportMonthLabel())
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
-          .from('monthly_reports')
-          .update({ user_articles: stored })
-          .eq('report_month', reportMonthLabel());
-      } else {
-        await supabase
-          .from('monthly_reports')
-          .insert({ report_month: reportMonthLabel(), user_articles: stored });
+      const { data, error } = await supabase
+        .from('member_articles')
+        .insert({ contributor_name: name, title, body })
+        .select()
+        .single();
+      if (error) {
+        console.error('[member_articles] insert error:', error.message);
+        setSaveError(error.message.includes('does not exist')
+          ? 'The member_articles table has not been created in Supabase yet. Please run the migration SQL.'
+          : `Save failed: ${error.message}`);
+      } else if (data) {
+        setArticles(prev => [data as MemberArticle, ...prev]);
       }
     } finally {
       setSaving(false);
     }
   }
 
-  function handleAdd(text: string, label: string) {
-    const article: MemberArticle = {
-      id:      Date.now().toString(),
-      text,
-      label,
-      addedAt: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-    };
-    const updated = [...articles, article];
-    setArticles(updated);
-    persistArticles(updated);
-  }
-
-  function handleDelete(id: string) {
-    const updated = articles.filter(a => a.id !== id);
-    setArticles(updated);
-    persistArticles(updated);
+  async function handleDelete(id: string) {
+    await supabase.from('member_articles').delete().eq('id', id);
+    setArticles(prev => prev.filter(a => a.id !== id));
   }
 
   return (
@@ -297,14 +340,32 @@ export default function MonthlyBriefPage() {
           </div>
         )}
 
-        {/* Reading list — always visible so members can add articles before generation */}
+        {/* Members' Reading List — always visible */}
         {!loading && (
-          <ReadingList
-            articles={articles}
-            onAdd={handleAdd}
-            onDelete={handleDelete}
-            saving={saving}
-          />
+          <>
+            {tableError && (
+              <div className="mt-8 bg-red-900/20 border border-red-700 rounded-xl p-4 text-sm text-red-300">
+                <p className="font-semibold mb-1">Database table missing</p>
+                <p className="text-red-400 text-xs mb-2">
+                  The <code className="font-mono bg-red-900/40 px-1 rounded">member_articles</code> table does not exist in Supabase yet. Run this migration in the Supabase SQL editor:
+                </p>
+                <pre className="bg-gray-900 text-gray-300 text-xs rounded-lg p-3 overflow-x-auto whitespace-pre">{`CREATE TABLE member_articles (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  contributor_name text NOT NULL,
+  title text NOT NULL,
+  body text NOT NULL,
+  added_at timestamptz DEFAULT now() NOT NULL
+);`}</pre>
+              </div>
+            )}
+            <ReadingList
+              articles={articles}
+              onAdd={handleAdd}
+              onDelete={handleDelete}
+              saving={saving}
+              saveError={saveError}
+            />
+          </>
         )}
 
       </div>
