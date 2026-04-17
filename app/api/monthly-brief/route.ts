@@ -1119,7 +1119,9 @@ function buildPart3Message(
     'Dropdown: bull/bear case 3 points each per sector, and detail on each theme.',
 
     '7. INCOME CORNER — Use the DIVIDEND DATA provided (live ex-dividend dates and amounts from Yahoo Finance). ' +
-    'Table: Ticker | Company | Ex-Div Date | Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
+    'Also check the MATERIAL RNS DATA for any "Dividend" category announcements — their summaries often state the payment date explicitly; extract it where present. ' +
+    'Table: Ticker | Company | Ex-Div Date | Payment Date | Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
+    'If no payment date can be found from the RNS summaries, leave the Payment Date cell blank rather than guessing. ' +
     'Show all holdings with dividend data sorted by ex-div date. ' +
     'Call out dividends paid this month, upcoming ex-div dates in next 30 days, any cuts or increases vs prior year, and buybacks. ' +
     'Compare portfolio income yield to FTSE100 benchmark: ~3.5% dividend yield / ~6.5% total cash yield. ' +
