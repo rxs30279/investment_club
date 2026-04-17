@@ -1110,7 +1110,7 @@ function buildPart3Message(
     'OUTPUT: This is a continuation — do NOT start a new <div id="monthly-report"> or repeat any earlier sections. ' +
     'Output sections 6–9 only, then the footer paragraph, then close with </div>. No preamble. Output only the HTML.\n\n' +
     STYLE_BLOCK + '\n\n' +
-    'FOOTER (after section 9): Report generated ' + currentDate +
+    'FOOTER (after section 9): Before the footer text, render a full-width <hr> styled with border-color #374151 and margin 32px 0. Then render the footer as a small centered paragraph in text color #6b7280. Text: Report generated ' + currentDate +
     ' | Portfolio data: Club database | Market data: Investegate, Yahoo Finance UK, Bank of England, ONS' +
     ' | ETF flow data: JustETF (justetf.com/uk) | RNS, Results & Director Dealings: Investegate' +
     ' | Press coverage: Google News | This report is produced for club members only and does not constitute financial advice.\n\n' +
