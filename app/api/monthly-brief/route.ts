@@ -1039,6 +1039,7 @@ function buildPart2Message(
   userArticles: string,
   reportMonth: string,
   currentDate: string,
+  perfMonth: string,
 ): string {
   const memberBlock = userArticles?.trim()
     ? 'MEMBER READING LIST (articles shared by club members — format: [Contributor Name] "Title" then body; feature these prominently in section 4):\n' + userArticles + '\n\n'
@@ -1058,8 +1059,8 @@ function buildPart2Message(
 
     '5. PORTFOLIO vs MARKET — All output must be valid HTML only. Never use markdown.\n\n' +
     'A) PERFORMANCE TABLE — wrap in <div style="margin-bottom:24px">. ' +
-    'Rows: MESI Portfolio / FTSE 100 / FTSE 250. Columns: "This Month (' + reportMonth.split(' ')[0] + ')" / YTD. ' +
-    'Under the This Month column header render a <div style="font-size:11px;color:#6b7280;font-weight:normal;margin-top:2px"> showing the date window from FUND PERFORMANCE. ' +
+    'Rows: MESI Portfolio / FTSE 100 / FTSE 250. Columns: "Month - ' + perfMonth + '" / YTD. ' +
+    'Under the Month column header render a <div style="font-size:11px;color:#6b7280;font-weight:normal;margin-top:2px"> showing the date window from FUND PERFORMANCE. ' +
     'MESI row uses monthly_return_pct and ytd_return_pct from FUND PERFORMANCE. FTSE rows use MACRO figures.\n\n' +
     'B) AMBER NOTICE — immediately after the table render: <div class="notice-amber">One sentence on the unit-value lag. One sentence pointing to the Holdings page.</div>\n\n' +
     'C) INDEX BREAKDOWN — render <h3>Index Membership Breakdown</h3> then one short intro sentence in a <p>.\n' +
@@ -1265,6 +1266,8 @@ export async function POST(request: NextRequest) {
   );
   const mesiFromDate = sortedUV.at(-2)?.valuation_date ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
   const mesiToDate   = sortedUV.at(-1)?.valuation_date ?? new Date().toISOString().slice(0, 10);
+  // Month name derived from measurement end date (e.g. "March"), not the current calendar month
+  const perfMonth    = new Date(mesiToDate).toLocaleString('en-GB', { month: 'long' });
 
   // Fetch all external data in parallel
   // Note: fetchAllInvestegateData fetches the 30 daily Investegate pages ONCE
@@ -1315,7 +1318,7 @@ export async function POST(request: NextRequest) {
     const part2Message = buildPart2Message(
       portfolioJSON, macroJSON, unitValueStats, materialData,
       pressNews, body.userArticles ?? '',
-      body.reportMonth, body.currentDate,
+      body.reportMonth, body.currentDate, perfMonth,
     );
     const part3Message = buildPart3Message(
       portfolioJSON, macroJSON, etfData, rnsData, materialData,
