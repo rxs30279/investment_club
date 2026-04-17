@@ -955,7 +955,7 @@ function buildMacroJSON(
 const STYLE_BLOCK =
   'STYLE: Dark theme. Background #111827, cards #1f2937, border #374151, text #e5e7eb, ' +
   'green #10b981, amber #f59e0b, red #ef4444. Font: Inter (Google Fonts). Cards with rounded corners and subtle shadow. ' +
-  'Every top-level section must be wrapped in <div style="margin-bottom:40px">. ' +
+  'Every top-level section must be wrapped in <div class="section">. ' +
   'Use <details><summary> tags for all expandable sections with summary text "📖 Read more — [topic]" (book emoji, em dash). ' +
   'Traffic light emojis in tables. Output only the HTML. ' +
   'NEVER use markdown syntax in the output — no **bold**, no ##headings, no bullet hyphens. Use HTML tags only (<strong>, <h3>, <ul> etc.).\n\n' +
@@ -1036,23 +1036,20 @@ function buildPart2Message(
     'Rows: MESI Portfolio / FTSE 100 / FTSE 250. Columns: "This Month (' + reportMonth.split(' ')[0] + ')" / YTD. ' +
     'Under the This Month column header render a <div style="font-size:11px;color:#6b7280;font-weight:normal;margin-top:2px"> showing the date window from FUND PERFORMANCE. ' +
     'MESI row uses monthly_return_pct and ytd_return_pct from FUND PERFORMANCE. FTSE rows use MACRO figures.\n\n' +
-    'B) AMBER NOTICE — immediately after the table render exactly this structure: ' +
-    '<div style="background:#451a03;border:1px solid #92400e;border-radius:8px;padding:12px 16px;margin:16px 0;font-size:13px;color:#fcd34d;line-height:1.6"> ' +
-    'One sentence on the unit-value lag. One sentence pointing to the Holdings page. No markdown inside. </div>\n\n' +
-    'C) INDEX BREAKDOWN HEADING — render <h3 style="color:#f9fafb;font-size:15px;font-weight:600;margin:24px 0 16px">Index Membership Breakdown</h3> ' +
-    'then a short introductory <p style="color:#9ca3af;font-size:13px;margin-bottom:16px"> sentence.\n' +
-    'Then render each index group as its own card using this exact template (one card per group, stacked vertically, NOT in a flex row):\n' +
-    '<div style="background:#1f2937;border:1px solid #374151;border-radius:10px;padding:16px 20px;margin-bottom:12px">\n' +
-    '  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">\n' +
-    '    <span style="color:#f9fafb;font-size:14px;font-weight:600">FTSE 100</span>\n' +
-    '    <span style="background:#374151;color:#9ca3af;font-size:11px;padding:2px 8px;border-radius:9999px">N holdings</span>\n' +
+    'B) AMBER NOTICE — immediately after the table render: <div class="notice-amber">One sentence on the unit-value lag. One sentence pointing to the Holdings page.</div>\n\n' +
+    'C) INDEX BREAKDOWN — render <h3>Index Membership Breakdown</h3> then one short intro sentence in a <p>.\n' +
+    'Then for each index group (FTSE 100 / FTSE 250 / AIM / other) render one card using EXACTLY this class structure:\n' +
+    '<div class="index-card">\n' +
+    '  <div class="index-card-header">\n' +
+    '    <span class="index-card-title">FTSE 100</span>\n' +
+    '    <span class="index-card-badge">4 holdings</span>\n' +
     '  </div>\n' +
-    '  <div style="font-size:24px;font-weight:700;color:#10b981;margin-bottom:4px">+X.X%</div>\n' +
-    '  <div style="font-size:11px;color:#6b7280;margin-bottom:10px">Avg. monthly change</div>\n' +
-    '  <div style="font-size:12px;color:#9ca3af">Company A, Company B, Company C</div>\n' +
-    '  <p style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.5">One sentence commentary on this group — what drove the move, any outliers. Plain text only.</p>\n' +
+    '  <div class="index-card-pct pct-pos">+10.2%</div>\n' +
+    '  <div class="index-card-label">Avg. monthly change</div>\n' +
+    '  <div class="index-card-holdings">BAE Systems, Rolls-Royce, RELX, Lloyds</div>\n' +
+    '  <div class="index-card-note">One sentence on what drove this group and any outliers.</div>\n' +
     '</div>\n' +
-    'Use green (#10b981) for positive moves, red (#ef4444) for negative. Repeat the card for FTSE 250, AIM, and any other group present.\n\n' +
+    'Use class "pct-pos" for positive, "pct-neg" for negative. Cards stacked vertically. Do not use a flex row.\n\n' +
     'D) DROPDOWN — <details> with stock-by-stock contribution table (Ticker | Monthly Change | Contribution | Notes), sorted best to worst.',
   ].join('\n\n');
 
@@ -1338,16 +1335,41 @@ export async function POST(request: NextRequest) {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #111827 !important; color: #e5e7eb !important; font-family: 'Inter', sans-serif; padding: 24px; }
+  body { background: #111827 !important; color: #e5e7eb !important; font-family: 'Inter', sans-serif; padding: 24px; line-height: 1.6; }
   #monthly-report { background: #111827; }
-  table { width: 100%; border-collapse: collapse; color: #e5e7eb !important; }
-  th { background: #374151 !important; color: #f9fafb !important; padding: 8px 12px; text-align: left; font-size: 13px; }
-  td { background: #1f2937 !important; color: #e5e7eb !important; padding: 8px 12px; border-bottom: 1px solid #374151; font-size: 13px; }
+
+  /* ── Section spacing ── */
+  .section { margin-bottom: 48px; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; color: #e5e7eb !important; margin-bottom: 16px; }
+  th { background: #374151 !important; color: #f9fafb !important; padding: 10px 14px; text-align: left; font-size: 13px; }
+  td { background: #1f2937 !important; color: #e5e7eb !important; padding: 10px 14px; border-bottom: 1px solid #374151; font-size: 13px; }
   tr:hover td { background: #263548 !important; }
-  details { background: #1f2937; border: 1px solid #374151; border-radius: 8px; margin-top: 8px; padding: 4px 12px; }
+
+  /* ── Expandable dropdowns ── */
+  details { background: #1f2937; border: 1px solid #374151; border-radius: 8px; margin-top: 12px; padding: 4px 12px; }
   summary { color: #10b981; cursor: pointer; padding: 8px 0; font-size: 13px; }
+
+  /* ── Index membership cards ── */
+  .index-card { background: #1f2937; border: 1px solid #374151; border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; }
+  .index-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .index-card-title { color: #f9fafb; font-size: 14px; font-weight: 600; }
+  .index-card-badge { background: #374151; color: #9ca3af; font-size: 11px; padding: 2px 10px; border-radius: 9999px; }
+  .index-card-pct { font-size: 28px; font-weight: 700; margin-bottom: 2px; }
+  .index-card-label { font-size: 11px; color: #6b7280; margin-bottom: 10px; }
+  .index-card-holdings { font-size: 12px; color: #9ca3af; margin-bottom: 8px; }
+  .index-card-note { font-size: 12px; color: #6b7280; line-height: 1.5; }
+  .pct-pos { color: #10b981; }
+  .pct-neg { color: #ef4444; }
+
+  /* ── Amber notice ── */
+  .notice-amber { background: #451a03; border: 1px solid #92400e; border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 13px; color: #fcd34d; line-height: 1.6; }
+
+  /* ── General ── */
   a { color: #10b981; }
-  h1, h2, h3, h4 { color: #f9fafb; }
+  h1, h2, h3, h4 { color: #f9fafb; margin-bottom: 12px; }
+  p { margin-bottom: 10px; }
 </style>
 </head>
 <body>
