@@ -956,7 +956,8 @@ const STYLE_BLOCK =
   'STYLE: Dark theme. Background #111827, cards #1f2937, border #374151, text #e5e7eb, ' +
   'green #10b981, amber #f59e0b, red #ef4444. Font: Inter (Google Fonts). Cards with rounded corners and subtle shadow. ' +
   'Use <details><summary> tags for all expandable sections with summary text "📖 Read more — [topic]" (book emoji, em dash). ' +
-  'Traffic light emojis in tables. Output only the HTML.\n\n' +
+  'Traffic light emojis in tables. Output only the HTML. ' +
+  'NEVER use markdown syntax in the output — no **bold**, no ##headings, no bullet hyphens. Use HTML tags only (<strong>, <h3>, <ul> etc.).\n\n' +
   'TONE: Friendly knowledgeable friend, not City broker. Plain English. Jargon explained inline. ' +
   'Four threads throughout: (1) large/mid-cap gap (2) M&A landscape (3) macro backdrop (4) ETF flow alignment. Forward views = opinion not advice.';
 
@@ -1029,14 +1030,16 @@ function buildPart2Message(
     'immediately below the main table, with a short 2-sentence note on why each article is relevant to the portfolio. ' +
     'Dropdown: one paragraph analysis per key article explaining what it means for the holding.',
 
-    '5. PORTFOLIO vs MARKET — Performance table (Portfolio/FTSE100/FTSE250 x This Month/YTD). ' +
-    'Label the "This Month" column as "This Month (' + reportMonth.split(' ')[0] + ')" and show the exact date window from FUND PERFORMANCE (monthly_measured_from to monthly_measured_to) as a small subtitle beneath the column header so readers know the precise period covered. ' +
-    'For the MESI portfolio row use FUND PERFORMANCE monthly_return_pct (this month) and ytd_return_pct (YTD) — ' +
-    'these are the authoritative unit-value figures. Do NOT recalculate portfolio return from individual stock moves. ' +
-    'For FTSE 100 and FTSE 250 use the monthly and YTD figures from MACRO. ' +
-    'Immediately below the performance table, add a small amber-coloured notice box explaining: the MESI portfolio return is based on club unit values which are calculated at the end of each month, so when this report is generated mid-month the portfolio figure covers a completed period while the FTSE figures are live — readers should refer to the Holdings page for the most up-to-date portfolio valuation. ' +
-    'Index membership breakdown (FTSE100 holdings / FTSE250 holdings / AIM holdings with average move for each group). ' +
-    'Dropdown: stock-by-stock detail using monthly_change_pct per holding (contribution, news note from MATERIAL RNS, ETF alignment), sorted best to worst contribution.',
+    '5. PORTFOLIO vs MARKET — All output must be valid HTML. Never use markdown syntax (**bold**, ##heading etc.) — use <strong>, <h3> etc. instead.\n' +
+    'A) Performance table: rows = MESI Portfolio / FTSE 100 / FTSE 250; columns = "This Month (' + reportMonth.split(' ')[0] + ')" / YTD. ' +
+    'Under the "This Month" column header add a <div> subtitle in small grey text showing the exact date window from FUND PERFORMANCE (monthly_measured_from → monthly_measured_to). ' +
+    'For the MESI portfolio row use FUND PERFORMANCE monthly_return_pct and ytd_return_pct — do NOT recalculate from individual stock moves. ' +
+    'For FTSE 100 and FTSE 250 use the monthly and YTD figures from MACRO.\n' +
+    'B) Amber notice box: render as a <div> with background #451a03, border 1px solid #92400e, border-radius 8px, padding 12px 16px, margin-top 16px. ' +
+    'Inside: one short paragraph of plain text (no markdown) explaining the unit-value lag and pointing readers to the Holdings page.\n' +
+    'C) Index membership breakdown: render as three separate <div> cards in a flex row, each showing the index name, number of holdings as a small badge, and average monthly move. ' +
+    'Any explanatory note about outliers must be inside a <p> tag — never as raw **markdown**.\n' +
+    'D) Dropdown: stock-by-stock detail using monthly_change_pct per holding (contribution, news note from MATERIAL RNS, ETF alignment), sorted best to worst contribution.',
   ].join('\n\n');
 
   return (
