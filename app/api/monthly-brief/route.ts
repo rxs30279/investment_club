@@ -450,15 +450,40 @@ function buildTradingDates(count = 45): string[] {
 }
 
 async function fetchDailyPages(dates: string[]): Promise<{ date: string; html: string }[]> {
-  const results = await Promise.allSettled(
-    dates.map(date =>
-      fetch(`https://www.investegate.co.uk/today-announcements/${date}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'text/html' },
-        signal: AbortSignal.timeout(10000),
-      }).then(async r => ({ date, html: r.ok ? await r.text() : '' }))
-    )
-  );
-  return results.flatMap(r => (r.status === 'fulfilled' && r.value.html ? [r.value] : []));
+  const PAGE_LIMIT = /announcement-link/;
+  const MAX_PAGES  = 10;
+
+  async function fetchAllPagesForDate(date: string): Promise<{ date: string; html: string }[]> {
+    const pages: { date: string; html: string }[] = [];
+    for (let p = 1; p <= MAX_PAGES; p++) {
+      const url = p === 1
+        ? `https://www.investegate.co.uk/today-announcements/${date}`
+        : `https://www.investegate.co.uk/today-announcements/${date}?page=${p}`;
+      try {
+        const r = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'text/html' },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!r.ok) break;
+        const html = await r.text();
+        if (!html || !PAGE_LIMIT.test(html)) break;
+        pages.push({ date, html });
+        // Stop if there's no next-page link beyond the current page number
+        const maxPage = Math.max(...[...html.matchAll(/[?&]page=(\d+)/gi)].map(m => parseInt(m[1], 10)), 0);
+        if (maxPage < p + 1) break;
+      } catch { break; }
+    }
+    return pages;
+  }
+
+  // Batch dates in groups of 5 to avoid overwhelming Investegate with concurrent connections
+  const BATCH = 5;
+  const out: { date: string; html: string }[] = [];
+  for (let i = 0; i < dates.length; i += BATCH) {
+    const batch = await Promise.allSettled(dates.slice(i, i + BATCH).map(fetchAllPagesForDate));
+    out.push(...batch.flatMap(r => r.status === 'fulfilled' ? r.value : []));
+  }
+  return out;
 }
 
 // ── Summary extractor ─────────────────────────────────────────────────────────
