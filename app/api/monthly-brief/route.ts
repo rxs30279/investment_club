@@ -955,6 +955,7 @@ function buildMacroJSON(
 const STYLE_BLOCK =
   'STYLE: Dark theme. Background #111827, cards #1f2937, border #374151, text #e5e7eb, ' +
   'green #10b981, amber #f59e0b, red #ef4444. Font: Inter (Google Fonts). Cards with rounded corners and subtle shadow. ' +
+  'Every top-level section must be wrapped in <div style="margin-bottom:40px">. ' +
   'Use <details><summary> tags for all expandable sections with summary text "📖 Read more — [topic]" (book emoji, em dash). ' +
   'Traffic light emojis in tables. Output only the HTML. ' +
   'NEVER use markdown syntax in the output — no **bold**, no ##headings, no bullet hyphens. Use HTML tags only (<strong>, <h3>, <ul> etc.).\n\n' +
@@ -1030,16 +1031,29 @@ function buildPart2Message(
     'immediately below the main table, with a short 2-sentence note on why each article is relevant to the portfolio. ' +
     'Dropdown: one paragraph analysis per key article explaining what it means for the holding.',
 
-    '5. PORTFOLIO vs MARKET — All output must be valid HTML. Never use markdown syntax (**bold**, ##heading etc.) — use <strong>, <h3> etc. instead.\n' +
-    'A) Performance table: rows = MESI Portfolio / FTSE 100 / FTSE 250; columns = "This Month (' + reportMonth.split(' ')[0] + ')" / YTD. ' +
-    'Under the "This Month" column header add a <div> subtitle in small grey text showing the exact date window from FUND PERFORMANCE (monthly_measured_from → monthly_measured_to). ' +
-    'For the MESI portfolio row use FUND PERFORMANCE monthly_return_pct and ytd_return_pct — do NOT recalculate from individual stock moves. ' +
-    'For FTSE 100 and FTSE 250 use the monthly and YTD figures from MACRO.\n' +
-    'B) Amber notice box: render as a <div> with background #451a03, border 1px solid #92400e, border-radius 8px, padding 12px 16px, margin-top 16px. ' +
-    'Inside: one short paragraph of plain text (no markdown) explaining the unit-value lag and pointing readers to the Holdings page.\n' +
-    'C) Index membership breakdown: render as three separate <div> cards in a flex row, each showing the index name, number of holdings as a small badge, and average monthly move. ' +
-    'Any explanatory note about outliers must be inside a <p> tag — never as raw **markdown**.\n' +
-    'D) Dropdown: stock-by-stock detail using monthly_change_pct per holding (contribution, news note from MATERIAL RNS, ETF alignment), sorted best to worst contribution.',
+    '5. PORTFOLIO vs MARKET — All output must be valid HTML only. Never use markdown.\n\n' +
+    'A) PERFORMANCE TABLE — wrap in <div style="margin-bottom:24px">. ' +
+    'Rows: MESI Portfolio / FTSE 100 / FTSE 250. Columns: "This Month (' + reportMonth.split(' ')[0] + ')" / YTD. ' +
+    'Under the This Month column header render a <div style="font-size:11px;color:#6b7280;font-weight:normal;margin-top:2px"> showing the date window from FUND PERFORMANCE. ' +
+    'MESI row uses monthly_return_pct and ytd_return_pct from FUND PERFORMANCE. FTSE rows use MACRO figures.\n\n' +
+    'B) AMBER NOTICE — immediately after the table render exactly this structure: ' +
+    '<div style="background:#451a03;border:1px solid #92400e;border-radius:8px;padding:12px 16px;margin:16px 0;font-size:13px;color:#fcd34d;line-height:1.6"> ' +
+    'One sentence on the unit-value lag. One sentence pointing to the Holdings page. No markdown inside. </div>\n\n' +
+    'C) INDEX BREAKDOWN HEADING — render <h3 style="color:#f9fafb;font-size:15px;font-weight:600;margin:24px 0 16px">Index Membership Breakdown</h3> ' +
+    'then a short introductory <p style="color:#9ca3af;font-size:13px;margin-bottom:16px"> sentence.\n' +
+    'Then render each index group as its own card using this exact template (one card per group, stacked vertically, NOT in a flex row):\n' +
+    '<div style="background:#1f2937;border:1px solid #374151;border-radius:10px;padding:16px 20px;margin-bottom:12px">\n' +
+    '  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">\n' +
+    '    <span style="color:#f9fafb;font-size:14px;font-weight:600">FTSE 100</span>\n' +
+    '    <span style="background:#374151;color:#9ca3af;font-size:11px;padding:2px 8px;border-radius:9999px">N holdings</span>\n' +
+    '  </div>\n' +
+    '  <div style="font-size:24px;font-weight:700;color:#10b981;margin-bottom:4px">+X.X%</div>\n' +
+    '  <div style="font-size:11px;color:#6b7280;margin-bottom:10px">Avg. monthly change</div>\n' +
+    '  <div style="font-size:12px;color:#9ca3af">Company A, Company B, Company C</div>\n' +
+    '  <p style="font-size:12px;color:#6b7280;margin-top:8px;line-height:1.5">One sentence commentary on this group — what drove the move, any outliers. Plain text only.</p>\n' +
+    '</div>\n' +
+    'Use green (#10b981) for positive moves, red (#ef4444) for negative. Repeat the card for FTSE 250, AIM, and any other group present.\n\n' +
+    'D) DROPDOWN — <details> with stock-by-stock contribution table (Ticker | Monthly Change | Contribution | Notes), sorted best to worst.',
   ].join('\n\n');
 
   return (
