@@ -1063,7 +1063,7 @@ function buildPart2Message(
     'Under the Month column header render a <div style="font-size:11px;color:#6b7280;font-weight:normal;margin-top:2px"> showing the date window from FUND PERFORMANCE. ' +
     'MESI row uses monthly_return_pct and ytd_return_pct from FUND PERFORMANCE. FTSE rows use MACRO figures.\n\n' +
     'B) AMBER NOTICE — immediately after the table render: <div class="notice-amber">One sentence on the unit-value lag. One sentence pointing to the Holdings page.</div>\n\n' +
-    'C) INDEX BREAKDOWN — render <h3>Index Membership Breakdown</h3> then one short intro sentence in a <p>.\n' +
+    'C) INDEX BREAKDOWN — render <h3>Index Membership Breakdown</h3> then immediately below it render a <p style="font-size:12px;color:#6b7280;margin-bottom:16px"> showing the date window from FUND PERFORMANCE (e.g. "Monthly change: 28 Feb – 31 Mar 2026") so readers can see these figures cover the same ' + perfMonth + ' period as the table above, not the current month. Then one short intro sentence in a <p>.\n' +
     'Then for each index group (FTSE 100 / FTSE 250 / AIM / other) render one card using EXACTLY this class structure:\n' +
     '<div class="index-card">\n' +
     '  <div class="index-card-header">\n' +
