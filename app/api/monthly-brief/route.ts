@@ -14,7 +14,7 @@
 //   - Material RNS summaries (results, trading updates, M&A etc.) — Investegate
 //   - Director/PDMR dealing summaries                             — Investegate
 //   - Dividend history (last 12 months, ex-div dates + amounts)   — Yahoo Finance
-//   - Dividend payment dates (where declared in last 45 days)     — extracted from RNS announcement summaries
+//   - Upcoming dividend ex-div + payment dates                    — dividenddata.co.uk
 //
 // DeepSeek uses its training knowledge only for fields not covered above
 // (e.g. index membership, geographic revenue mix, takeover activity narrative).
@@ -209,47 +209,50 @@ async function fetchDividendDataUk(): Promise<Map<string, DividendDataRecord[]>>
   return map;
 }
 
+// Emits UPCOMING dividends only — rows from dividenddata.co.uk matched to
+// portfolio holdings. Yahoo historical amounts are shown alongside as a guide
+// to the likely size of the upcoming payment (the actual amount is behind an
+// image on the source page). Holdings with no upcoming dividend are omitted.
 function formatDividendData(rows: DividendRow[], paymentDates: Map<string, DividendDataRecord[]>): string {
-  const lines: string[] = [
-    '=== Dividend data (ex-div dates + amounts from Yahoo Finance; Payment Date column sourced from dividenddata.co.uk) ===\n',
-    'Payment Date column is populated when dividenddata.co.uk lists the dividend as upcoming (either still to go ex-div, or ex-div\'d but awaiting payment). Older ex-div rows whose payment has already been made correctly show "—" — do not invent a date.',
-    '',
-    'Ticker     | Company                        | Ex-Div Date | Amount (p) | Payment Date | Notes',
-    '-----------|--------------------------------|-------------|------------|--------------|------',
-  ];
+  interface UpcomingRow {
+    ticker: string;
+    name: string;
+    exDiv: string;
+    paymentDate: string;
+    recentAmount: number | null;
+  }
 
-  let anyData = false;
+  const upcoming: UpcomingRow[] = [];
   for (const { ticker, name, divs } of rows) {
-    if (divs.length === 0) {
-      lines.push(`${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | No dividend data found`);
-      continue;
-    }
-    anyData = true;
-
     const bareTicker = ticker.toUpperCase().replace(/\.[A-Z]{1,2}$/, '').replace(/\.$/, '');
-    const tickerRecords = paymentDates.get(bareTicker) ?? [];
-
-    for (const d of divs) {
-      // Prefer records with a matching ex-div date (within ±45 days). Fall back
-      // to records with no ex-div info (payment-only page) if exactly one.
-      const withExDiv = tickerRecords.filter(r => r.exDiv !== null);
-      const best = withExDiv
-        .map(r => ({ r, diff: Math.abs(Date.parse(r.exDiv!) - Date.parse(d.date)) }))
-        .filter(x => x.diff < 45 * 86_400_000)
-        .sort((a, b) => a.diff - b.diff)[0]?.r;
-      const fallback = !best && tickerRecords.filter(r => r.exDiv === null).length === 1
-        ? tickerRecords.find(r => r.exDiv === null)!
-        : null;
-      const match = best ?? fallback;
-      const payCell = match ? match.paymentDate : '—           ';
-      lines.push(
-        `${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | ${d.date}    |` +
-        ` ${d.amount.toFixed(4).padStart(10)} | ${payCell.padEnd(12)} |`
-      );
+    const records = paymentDates.get(bareTicker) ?? [];
+    const withExDiv = records.filter(r => r.exDiv !== null);
+    if (withExDiv.length === 0) continue;
+    const recentAmount = divs[0]?.amount ?? null;
+    for (const r of withExDiv) {
+      upcoming.push({ ticker, name, exDiv: r.exDiv!, paymentDate: r.paymentDate, recentAmount });
     }
   }
 
-  if (!anyData) return '[Dividend data unavailable — use your knowledge for dividend dates and yields]';
+  if (upcoming.length === 0) {
+    return '[No upcoming dividends found for any portfolio holding on dividenddata.co.uk]';
+  }
+
+  upcoming.sort((a, b) => a.exDiv.localeCompare(b.exDiv));
+
+  const lines: string[] = [
+    '=== Upcoming dividends (sourced from dividenddata.co.uk — only holdings with a confirmed upcoming ex-div or payment date) ===\n',
+    'Recent Amount (p) is the most recent historical dividend per share from Yahoo Finance, shown as a guide to the likely size of the upcoming payment. The actual upcoming amount may differ (e.g. interim vs. final).',
+    '',
+    'Ticker     | Company                        | Ex-Div Date | Payment Date | Recent Amount (p)',
+    '-----------|--------------------------------|-------------|--------------|------------------',
+  ];
+  for (const u of upcoming) {
+    const amt = u.recentAmount !== null ? u.recentAmount.toFixed(4).padStart(10) : '        —';
+    lines.push(
+      `${u.ticker.padEnd(10)} | ${u.name.substring(0, 30).padEnd(30)} | ${u.exDiv}  | ${u.paymentDate}   | ${amt}`
+    );
+  }
   return lines.join('\n');
 }
 
@@ -1234,13 +1237,13 @@ function buildPart3Message(
     'Then a Theme table: Theme|Direction|Strength|ETF Signal|Portfolio Impact — cover: Energy, Gold/Metals, Nuclear, M&A, Dividends, BOE Rates, Defence, Rare Earths, Activism, Labour Risk, AI, Foreign Buyers, Sterling, Clean Energy. ' +
     'Dropdown: bull/bear case 3 points each per sector, and detail on each theme.',
 
-    '7. INCOME CORNER — Use the DIVIDEND DATA provided (ex-div dates + amounts from Yahoo Finance; the Payment Date column has been pre-extracted from RNS Dividend announcement summaries and matched to each ex-div row by pence amount). ' +
-    'Table: Ticker | Company | Ex-Div Date | Payment Date | Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
-    'Populate Payment Date directly from the Payment Date column in DIVIDEND DATA. If that column shows "—" for a row, leave the Payment Date cell blank — do NOT infer or guess from other sources. ' +
-    'Show all holdings with dividend data sorted by ex-div date (most recent first). ' +
-    'Call out dividends paid this month, upcoming ex-div dates in next 30 days, any cuts or increases vs prior year, and buybacks. ' +
-    'Compare portfolio income yield to FTSE100 benchmark: ~3.5% dividend yield / ~6.5% total cash yield. ' +
-    'Dropdown: dividend history per holding.',
+    '7. INCOME CORNER — Upcoming dividends only. Use the DIVIDEND DATA provided, which already contains only portfolio holdings with a confirmed upcoming ex-div and payment date (from dividenddata.co.uk). Do NOT add historical ex-div rows, and do NOT invent entries for holdings not listed. ' +
+    'Table: Ticker | Company | Ex-Div Date | Payment Date | Recent Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
+    'Copy Ticker, Company, Ex-Div Date, Payment Date and Recent Amount directly from the DIVIDEND DATA block. Sort by Ex-Div Date ascending (nearest first). ' +
+    'Annual Yield est. and Vs FTSE100 avg. — compute from your own knowledge of the holding (typical annual dividend per share ÷ current price) vs FTSE100 ~3.5% dividend yield / ~6.5% total cash yield. ' +
+    'Above the table, add a brief sentence listing which holdings pay in the next 30 days (total cash expected, if you can reasonably estimate from Recent Amount × holding size from PORTFOLIO). Mention any notable cuts, increases or buybacks you are aware of. ' +
+    'If DIVIDEND DATA says "[No upcoming dividends found...]" then say so plainly in one line and skip the table. ' +
+    'Dropdown: context / commentary per holding.',
 
     '8. RESULTS & CORPORATE ACTIONS — Two sub-sections in one card.\n' +
     'Sub-section A — Results & Corporate Actions: Use the MATERIAL RNS DATA provided. ' +
