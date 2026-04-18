@@ -1040,6 +1040,7 @@ function buildPart2Message(
   reportMonth: string,
   currentDate: string,
   perfMonth: string,
+  indexMtdWindow: string,
 ): string {
   const memberBlock = userArticles?.trim()
     ? 'MEMBER READING LIST (articles shared by club members — format: [Contributor Name] "Title" then body; feature these prominently in section 4):\n' + userArticles + '\n\n'
@@ -1063,7 +1064,7 @@ function buildPart2Message(
     'Under the Month column header render a <div style="font-size:11px;color:#6b7280;font-weight:normal;margin-top:2px"> showing the date window from FUND PERFORMANCE. ' +
     'MESI row uses monthly_return_pct and ytd_return_pct from FUND PERFORMANCE. FTSE rows use MACRO figures.\n\n' +
     'B) AMBER NOTICE — immediately after the table render: <div class="notice-amber">One sentence on the unit-value lag. One sentence pointing to the Holdings page.</div>\n\n' +
-    'C) INDEX BREAKDOWN — render <h3>Index Membership Breakdown</h3> then immediately below it render a <p style="font-size:12px;color:#6b7280;margin-bottom:16px"> showing the date window from FUND PERFORMANCE (e.g. "Monthly change: 28 Feb – 31 Mar 2026") so readers can see these figures cover the same ' + perfMonth + ' period as the table above, not the current month. Then one short intro sentence in a <p>.\n' +
+    'C) INDEX BREAKDOWN — render <h3>Index Membership Breakdown</h3> then immediately below it render a <p style="font-size:12px;color:#6b7280;margin-bottom:16px"> containing the exact text "Month to date: ' + indexMtdWindow + '" so readers see the window these per-stock figures cover (sourced from PORTFOLIO monthly_change_pct, which is measured from the 1st of the current calendar month to today — NOT the fund-performance window used in the table above). Then one short intro sentence in a <p>.\n' +
     'Then for each index group (FTSE 100 / FTSE 250 / AIM / other) render one card using EXACTLY this class structure:\n' +
     '<div class="index-card">\n' +
     '  <div class="index-card-header">\n' +
@@ -1271,6 +1272,14 @@ export async function POST(request: NextRequest) {
   // Month name derived from measurement end date (e.g. "March"), not the current calendar month
   const perfMonth    = new Date(mesiToDate).toLocaleString('en-GB', { month: 'long' });
 
+  // Per-stock monthly_change_pct (used by the Index Membership Breakdown cards) is sourced
+  // from /api/monthly-performance which measures from the 1st of the current calendar month
+  // to today — so the subtitle under that heading must reflect that window, not the fund's
+  // unit-value measurement window.
+  const [curYr, curMo, curDy] = body.currentDate.split('-').map(Number);
+  const curMonthShort = new Date(curYr, curMo - 1, curDy).toLocaleString('en-GB', { month: 'short' });
+  const indexMtdWindow = `1 – ${curDy} ${curMonthShort} ${curYr}`;
+
   // Fetch all external data in parallel
   // Note: fetchAllInvestegateData fetches the 30 daily Investegate pages ONCE
   // and splits results into rnsData / directorData / materialData in a single pass.
@@ -1320,7 +1329,7 @@ export async function POST(request: NextRequest) {
     const part2Message = buildPart2Message(
       portfolioJSON, macroJSON, unitValueStats, materialData,
       pressNews, body.userArticles ?? '',
-      body.reportMonth, body.currentDate, perfMonth,
+      body.reportMonth, body.currentDate, perfMonth, indexMtdWindow,
     );
     const part3Message = buildPart3Message(
       portfolioJSON, macroJSON, etfData, rnsData, materialData,
