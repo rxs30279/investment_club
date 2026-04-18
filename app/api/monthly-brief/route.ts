@@ -182,7 +182,13 @@ async function fetchDividendDataUk(): Promise<Map<string, DividendDataRecord[]>>
     try {
       const r = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
       const text = r.ok ? await r.text() : '';
-      console.log(`[dividenddata] ${url} status=${r.status} bytes=${text.length}`);
+      const titleMatch = text.match(/<title[^>]*>([^<]*)<\/title>/i);
+      const hasTbody = text.includes('<tbody>');
+      console.log(
+        `[dividenddata] ${url} status=${r.status} bytes=${text.length} ` +
+        `title="${titleMatch?.[1] ?? '-'}" tbody=${hasTbody} cf-ray=${r.headers.get('cf-ray') ?? '-'} ` +
+        `first100="${text.slice(0, 100).replace(/\s+/g, ' ')}"`
+      );
       return text;
     } catch (err) {
       console.log(`[dividenddata] ${url} FETCH_ERROR: ${(err as Error).message}`);
