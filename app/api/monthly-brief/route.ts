@@ -161,13 +161,33 @@ function extractTdTexts(row: string): string[] {
 async function fetchDividendDataUk(): Promise<Map<string, DividendDataRecord[]>> {
   const map = new Map<string, DividendDataRecord[]>();
   const today = new Date();
-  const ua = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
+
+  // Full browser-style headers — dividenddata.co.uk appears to block requests
+  // with a minimal UA when they come from cloud data-center IPs (Vercel).
+  // Sending a plausible Chrome header set improves the hit rate.
+  const headers: HeadersInit = {
+    'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-GB,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Referer':         'https://www.dividenddata.co.uk/',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest':  'document',
+    'Sec-Fetch-Mode':  'navigate',
+    'Sec-Fetch-Site':  'same-origin',
+    'Sec-Fetch-User':  '?1',
+  };
 
   async function fetchPage(url: string): Promise<string> {
     try {
-      const r = await fetch(url, { headers: ua, signal: AbortSignal.timeout(10_000) });
-      return r.ok ? await r.text() : '';
-    } catch { return ''; }
+      const r = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+      const text = r.ok ? await r.text() : '';
+      console.log(`[dividenddata] ${url} status=${r.status} bytes=${text.length}`);
+      return text;
+    } catch (err) {
+      console.log(`[dividenddata] ${url} FETCH_ERROR: ${(err as Error).message}`);
+      return '';
+    }
   }
 
   const [exDivHtml, payHtml] = await Promise.all([
