@@ -348,9 +348,30 @@ function ManagePageContent() {
     return new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  // The server keeps generating even if the browser drops the streaming
+  // connection (Vercel runs the function to completion and saves to
+  // monthly_reports). When that happens, the row appears in Supabase a few
+  // seconds after we lose the stream — poll for it before giving up.
+  async function pollForSavedReport(month: string, startedAt: number): Promise<boolean> {
+    const deadline = startedAt + 6 * 60_000;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 5_000));
+      const { data } = await supabase
+        .from('monthly_reports')
+        .select('generated_at')
+        .eq('report_month', month)
+        .gte('generated_at', new Date(startedAt).toISOString())
+        .limit(1);
+      if (data && data.length > 0) return true;
+    }
+    return false;
+  }
+
   async function generateBrief() {
     setBriefStatus('fetching');
     setBriefError(null);
+    const startedAt = Date.now();
+    const month = reportMonthLabel();
     try {
       const [tx, prices, unitValues] = await Promise.all([
         getTransactions(), fetchPrices(), getUnitValues(),
@@ -399,7 +420,8 @@ function ManagePageContent() {
       }
 
       // The route streams NDJSON events: { type: 'progress' | 'chunk' | 'done' | 'error', ... }.
-      // Per-chunk progress keeps the connection warm so it can't time out.
+      // Per-chunk progress keeps the connection warm — but the browser can
+      // still drop the stream mid-flight on slow networks.
       if (!res.body) throw new Error('No response stream.');
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
@@ -408,23 +430,31 @@ function ManagePageContent() {
       let dbError: string | null = null;
       let reportError: string | null = null;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          let evt;
-          try { evt = JSON.parse(line); } catch { continue; }
-          if (evt.type === 'done')  { html = evt.html; dbError = evt.dbError; }
-          if (evt.type === 'error') { reportError = evt.error; }
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            let evt;
+            try { evt = JSON.parse(line); } catch { continue; }
+            if (evt.type === 'done')  { html = evt.html; dbError = evt.dbError; }
+            if (evt.type === 'error') { reportError = evt.error; }
+          }
         }
+      } catch {
+        // Stream errored — server may still complete and save. Fall through to poll.
       }
 
       if (reportError) throw new Error(reportError);
-      if (!html) throw new Error('No HTML content returned.');
+      if (!html) {
+        // Stream errored or closed without a 'done' event — poll Supabase.
+        const saved = await pollForSavedReport(month, startedAt);
+        if (!saved) throw new Error('Stream dropped and no saved report appeared after 6 min.');
+      }
       if (dbError) console.warn('[monthly-brief] Report generated but DB save failed:', dbError);
       setBriefStatus('done');
     } catch (err) {
