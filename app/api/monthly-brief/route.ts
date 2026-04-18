@@ -1498,6 +1498,29 @@ export async function POST(request: NextRequest) {
   a { color: #10b981; }
   h1, h2, h3, h4 { color: #f9fafb; margin-bottom: 12px; }
   p { margin-bottom: 10px; }
+
+  /* ── Mobile ── */
+  @media (max-width: 640px) {
+    body { padding: 12px; line-height: 1.5; }
+    .section { margin-bottom: 32px; }
+    h1 { font-size: 22px; }
+    h2 { font-size: 18px; }
+    h3 { font-size: 15px; }
+    h4 { font-size: 14px; }
+
+    /* Wide tables become horizontally scrollable instead of overflowing the viewport */
+    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+    th, td { padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+
+    .index-card { padding: 14px 16px; }
+    .index-card-pct { font-size: 22px; }
+    .index-card-title { font-size: 13px; }
+    .index-card-holdings, .index-card-note { font-size: 11px; }
+
+    .notice-amber { padding: 10px 12px; font-size: 12px; }
+    details { padding: 4px 10px; }
+    summary { font-size: 12px; }
+  }
 </style>
 </head>
 <body>
