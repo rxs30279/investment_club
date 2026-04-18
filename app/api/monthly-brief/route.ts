@@ -10,7 +10,7 @@
 //   - UK CPI annual rate                                          — ONS generator
 //   - UK GDP quarterly growth rate                                — ONS generator
 //   - ETF flow themes (best ETFs by YTD)                         — JustETF
-//   - RNS headline index (last 45 trading days, portfolio tickers)— Investegate
+//   - RNS headline index (last 60 trading days, portfolio tickers)— Investegate
 //   - Material RNS summaries (results, trading updates, M&A etc.) — Investegate
 //   - Director/PDMR dealing summaries                             — Investegate
 //   - Dividend history (last 12 months, ex-div dates + amounts)   — Yahoo Finance
@@ -121,78 +121,98 @@ async function fetchDividendRows(positions: Position[]): Promise<DividendRow[]> 
   return results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
 }
 
-// Payment dates are extracted from Investegate's AI summaries of Dividend category
-// RNS announcements (the materialData feed). Summaries typically say "payable on
-// 27 March 2026" or similar — we regex that out and match back to the Yahoo
-// ex-div rows by pence amount. This only covers dividends declared within the
-// 45-day RNS window; older rows get a blank Payment Date cell.
-interface RnsPaymentRecord { amount: number; paymentDate: string; }
+// Payment dates come from dividenddata.co.uk — two tables merged:
+//   - exdividenddate.py?m=alldividends  : EPIC | Name | Market | Price | Dividend(img) | Impact | Declaration | Ex-Div | Payment
+//   - dividend-payment-dates.py?m=...   : EPIC | Name | Market | Price | Payment
+// Both publish DD-MMM dates (no year). We resolve year by rolling forward:
+// a parsed date before today is assumed to be next year; otherwise current year.
+// dividend amounts are PNG images (deliberately obfuscated), so we match back
+// to the Yahoo ex-div rows by ticker + nearest ex-div date.
+interface DividendDataRecord { exDiv: string | null; paymentDate: string; }
 
 const MONTH_LOOKUP: Record<string, string> = {
-  january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
-  july: '07', august: '08', september: '09', october: '10', november: '11', december: '12',
-  jan: '01', feb: '02', mar: '03', apr: '04', jun: '06', jul: '07', aug: '08',
-  sep: '09', sept: '09', oct: '10', nov: '11', dec: '12',
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', sept: '09', oct: '10', nov: '11', dec: '12',
 };
 
-function parsePaymentDateString(raw: string): string | null {
-  const trimmed = raw.trim().replace(/,/g, '');
-  const word = trimmed.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})$/);
-  if (word) {
-    const mm = MONTH_LOOKUP[word[2].toLowerCase()];
-    if (!mm) return null;
-    return `${word[3]}-${mm}-${word[1].padStart(2, '0')}`;
-  }
-  const slash = trimmed.match(/^(\d{1,2})[\-/](\d{1,2})[\-/](\d{2,4})$/);
-  if (slash) {
-    let [, d, m, y] = slash;
-    if (y.length === 2) y = '20' + y;
-    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-  }
-  return null;
+function parseDdMmm(raw: string, today: Date): string | null {
+  const m = raw.trim().match(/^(\d{1,2})[-\s]([A-Za-z]{3,4})$/);
+  if (!m) return null;
+  const mm = MONTH_LOOKUP[m[2].toLowerCase()];
+  if (!mm) return null;
+  const dd = m[1].padStart(2, '0');
+  const curYear = today.getFullYear();
+  const candidate = `${curYear}-${mm}-${dd}`;
+  const candidateMs = Date.parse(candidate);
+  // If the parsed date is more than 60 days behind today, assume next year.
+  // If it's more than 9 months ahead, assume previous year (rare, but handles
+  // Jan rows listed in Dec).
+  const diffDays = (candidateMs - today.getTime()) / 86_400_000;
+  if (diffDays < -60) return `${curYear + 1}-${mm}-${dd}`;
+  if (diffDays > 275) return `${curYear - 1}-${mm}-${dd}`;
+  return candidate;
 }
 
-// "payable on 27 March 2026" / "will be paid on 27/03/2026" / "payment date: 27 Mar 2026"
-const PAYMENT_PHRASE_RE = /(?:payable|(?:to be|due to be|expected to be|will be) paid|payment (?:will be made|date(?: is)?:?))[^\d\n]{0,60}?(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+\d{4}|\d{1,2}[\-/]\d{1,2}[\-/](?:\d{4}|\d{2}))/i;
-const AMOUNT_PENCE_RE   = /(\d+(?:\.\d+)?)\s*(?:pence per share|pence|p per share|p)\b/i;
+function extractTdTexts(row: string): string[] {
+  return [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
+    .map(m => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+}
 
-function extractDividendPaymentDates(materialData: string): Map<string, RnsPaymentRecord[]> {
-  const map = new Map<string, RnsPaymentRecord[]>();
-  const divHeader = '--- Dividend ---';
-  const divStart = materialData.indexOf(divHeader);
-  if (divStart < 0) return map;
-  let divEnd = materialData.indexOf('\n--- ', divStart + divHeader.length);
-  if (divEnd < 0) divEnd = materialData.length;
-  const section = materialData.substring(divStart + divHeader.length, divEnd);
+async function fetchDividendDataUk(): Promise<Map<string, DividendDataRecord[]>> {
+  const map = new Map<string, DividendDataRecord[]>();
+  const today = new Date();
+  const ua = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
-  // Each entry: "YYYY-MM-DD  TICKER  Headline\n  → Summary"
-  const entryRe = /^(\d{4}-\d{2}-\d{2})\s+(\S+)\s+[^\n]*\n\s*→\s+([\s\S]*?)(?=\n\s*\n|\n\d{4}-\d{2}-\d{2}\s|\s*$)/gm;
-  let m: RegExpExecArray | null;
-  while ((m = entryRe.exec(section)) !== null) {
-    const ticker  = m[2].toUpperCase().replace(/\.[A-Z]{1,2}$/, '');
-    const summary = m[3];
-
-    const payMatch = summary.match(PAYMENT_PHRASE_RE);
-    if (!payMatch) continue;
-    const paymentDate = parsePaymentDateString(payMatch[1]);
-    if (!paymentDate) continue;
-
-    const amtMatch = summary.match(AMOUNT_PENCE_RE);
-    if (!amtMatch) continue;
-    const amount = parseFloat(amtMatch[1]);
-    if (!isFinite(amount)) continue;
-
-    const list = map.get(ticker) ?? [];
-    list.push({ amount, paymentDate });
-    map.set(ticker, list);
+  async function fetchPage(url: string): Promise<string> {
+    try {
+      const r = await fetch(url, { headers: ua, signal: AbortSignal.timeout(10_000) });
+      return r.ok ? await r.text() : '';
+    } catch { return ''; }
   }
+
+  const [exDivHtml, payHtml] = await Promise.all([
+    fetchPage('https://www.dividenddata.co.uk/exdividenddate.py?m=alldividends'),
+    fetchPage('https://www.dividenddata.co.uk/dividend-payment-dates.py?m=alldividends'),
+  ]);
+
+  function addRecord(epic: string, rec: DividendDataRecord) {
+    const key = epic.toUpperCase().replace(/\.$/, '');
+    if (!key) return;
+    const list = map.get(key) ?? [];
+    list.push(rec);
+    map.set(key, list);
+  }
+
+  // exdividenddate.py: 9 TDs — [EPIC, Name, Market, Price, DivImg, Impact, Declaration, Ex-Div, Payment]
+  const exBody = exDivHtml.slice(exDivHtml.indexOf('<tbody>'), exDivHtml.indexOf('</tbody>', exDivHtml.indexOf('<tbody>')));
+  for (const row of exBody.split(/<tr[^>]*>/).slice(1)) {
+    const tds = extractTdTexts(row);
+    if (tds.length < 9) continue;
+    const [epic, , , , , , , exDivRaw, paymentRaw] = tds;
+    const exDiv = parseDdMmm(exDivRaw, today);
+    const paymentDate = parseDdMmm(paymentRaw, today);
+    if (!paymentDate) continue;
+    addRecord(epic, { exDiv, paymentDate });
+  }
+
+  // dividend-payment-dates.py: 5 TDs — [EPIC, Name, Market, Price, Payment]
+  const payBody = payHtml.slice(payHtml.indexOf('<tbody>'), payHtml.indexOf('</tbody>', payHtml.indexOf('<tbody>')));
+  for (const row of payBody.split(/<tr[^>]*>/).slice(1)) {
+    const tds = extractTdTexts(row);
+    if (tds.length < 5) continue;
+    const [epic, , , , paymentRaw] = tds;
+    const paymentDate = parseDdMmm(paymentRaw, today);
+    if (!paymentDate) continue;
+    addRecord(epic, { exDiv: null, paymentDate });
+  }
+
   return map;
 }
 
-function formatDividendData(rows: DividendRow[], paymentDates: Map<string, RnsPaymentRecord[]>): string {
+function formatDividendData(rows: DividendRow[], paymentDates: Map<string, DividendDataRecord[]>): string {
   const lines: string[] = [
-    '=== Dividend data (ex-div dates + amounts from Yahoo Finance; Payment Date column pre-extracted from RNS Dividend announcements via Investegate) ===\n',
-    'Payment Date column is populated ONLY when the dividend was declared within the last 45 trading days (the RNS window) AND Investegate\'s AI summary contained a parseable payment-date phrase. Older ex-div rows correctly show "—" in that column — do not invent a date.',
+    '=== Dividend data (ex-div dates + amounts from Yahoo Finance; Payment Date column sourced from dividenddata.co.uk) ===\n',
+    'Payment Date column is populated when dividenddata.co.uk lists the dividend as upcoming (either still to go ex-div, or ex-div\'d but awaiting payment). Older ex-div rows whose payment has already been made correctly show "—" — do not invent a date.',
     '',
     'Ticker     | Company                        | Ex-Div Date | Amount (p) | Payment Date | Notes',
     '-----------|--------------------------------|-------------|------------|--------------|------',
@@ -207,11 +227,21 @@ function formatDividendData(rows: DividendRow[], paymentDates: Map<string, RnsPa
     anyData = true;
 
     const bareTicker = ticker.toUpperCase().replace(/\.[A-Z]{1,2}$/, '').replace(/\.$/, '');
-    const tickerPayDates = paymentDates.get(bareTicker) ?? [];
+    const tickerRecords = paymentDates.get(bareTicker) ?? [];
 
     for (const d of divs) {
-      const matched = tickerPayDates.find(pd => Math.abs(pd.amount - d.amount) < 0.02);
-      const payCell = matched ? matched.paymentDate : '—           ';
+      // Prefer records with a matching ex-div date (within ±45 days). Fall back
+      // to records with no ex-div info (payment-only page) if exactly one.
+      const withExDiv = tickerRecords.filter(r => r.exDiv !== null);
+      const best = withExDiv
+        .map(r => ({ r, diff: Math.abs(Date.parse(r.exDiv!) - Date.parse(d.date)) }))
+        .filter(x => x.diff < 45 * 86_400_000)
+        .sort((a, b) => a.diff - b.diff)[0]?.r;
+      const fallback = !best && tickerRecords.filter(r => r.exDiv === null).length === 1
+        ? tickerRecords.find(r => r.exDiv === null)!
+        : null;
+      const match = best ?? fallback;
+      const payCell = match ? match.paymentDate : '—           ';
       lines.push(
         `${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | ${d.date}    |` +
         ` ${d.amount.toFixed(4).padStart(10)} | ${payCell.padEnd(12)} |`
@@ -605,7 +635,7 @@ async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateDa
 
   // Investegate URLs use bare tickers (e.g. "cwr") — strip exchange suffixes (.L, .AX, etc.)
   const tickerSet = new Set(tickers.map(t => t.toUpperCase().replace(/[^A-Z0-9.]/g, '').replace(/\.[A-Z]{1,2}$/, '')));
-  const dates = buildTradingDates(30);
+  const dates = buildTradingDates(60);
   const pages = await fetchDailyPages(dates);
   console.log(`[investegate] Fetched ${pages.length}/${dates.length} daily pages. Tickers: ${[...tickerSet].join(',')}`);
   if (pages.length > 0) {
@@ -657,7 +687,7 @@ async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateDa
   ]);
 
   // ── Format: all RNS index ──────────────────────────────────────────────────
-  const rnsLines: string[] = ['=== Investegate RNS index (last 45 trading days, portfolio holdings) ===\n'];
+  const rnsLines: string[] = ['=== Investegate RNS index (last 60 trading days, portfolio holdings) ===\n'];
   if (allHits.length === 0) {
     rnsLines.push('[No announcements found for portfolio tickers in this period]');
   } else {
@@ -672,7 +702,7 @@ async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateDa
   }
 
   // ── Format: director dealings ──────────────────────────────────────────────
-  const dirLines: string[] = ['=== Director/PDMR Dealings (last 45 trading days, live summaries from Investegate) ===\n'];
+  const dirLines: string[] = ['=== Director/PDMR Dealings (last 60 trading days, live summaries from Investegate) ===\n'];
   const dirFulfilled = directorSummaries.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
   if (dirFulfilled.length === 0) {
     dirLines.push('[No director/PDMR shareholding announcements found for portfolio holdings in this period]');
@@ -685,7 +715,7 @@ async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateDa
   }
 
   // ── Format: material announcements ────────────────────────────────────────
-  const matLines: string[] = ['=== Material RNS Announcements (last 45 trading days, live summaries from Investegate) ===\n'];
+  const matLines: string[] = ['=== Material RNS Announcements (last 60 trading days, live summaries from Investegate) ===\n'];
   const matFulfilled = materialSummaries.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
   if (matFulfilled.length === 0) {
     matLines.push('[No material announcements (results, trading updates, acquisitions, etc.) found for portfolio holdings in this period]');
@@ -1229,10 +1259,10 @@ function buildPart3Message(
     'PORTFOLIO (for context):\n' + portfolioJSON + '\n\n' +
     'MACRO (for context):\n' + macroJSON + '\n\n' +
     'ETF FLOW DATA (use for sector/theme analysis in section 6):\n' + cap(etfData, 4000) + '\n\n' +
-    'RNS INDEX (all portfolio announcements, last 45 trading days — reference for sector/theme context):\n' + cap(rnsData, 2000) + '\n\n' +
+    'RNS INDEX (all portfolio announcements, last 60 trading days — reference for sector/theme context):\n' + cap(rnsData, 2000) + '\n\n' +
     'MATERIAL RNS (results, trading updates, acquisitions, capital raises, board changes — PRIMARY SOURCE for section 8 Results & Corporate Actions, also reference for sector context):\n' + cap(materialData, 8000) + '\n\n' +
     'DIVIDEND DATA (live ex-dividend dates and amounts from Yahoo Finance — last 12 months per holding):\n' + cap(dividendData, 4000) + '\n\n' +
-    'DIRECTOR DEALINGS (live from Investegate — last 45 trading days, portfolio holdings only, with AI summaries):\n' + cap(directorData, 5000) + '\n\n' +
+    'DIRECTOR DEALINGS (live from Investegate — last 60 trading days, portfolio holdings only, with AI summaries):\n' + cap(directorData, 5000) + '\n\n' +
     'For all live data above use it directly — do not substitute training knowledge where live data is present.\n\n' +
     'OUTPUT: This is a continuation — do NOT start a new <div id="monthly-report"> or repeat any earlier sections. ' +
     'Output sections 6–9 only, then the footer paragraph, then close with </div>. No preamble. Output only the HTML.\n\n' +
@@ -1383,7 +1413,7 @@ export async function POST(request: NextRequest) {
 
         // Fetch all external data in parallel
         const tickers = body.positions.map(p => p.ticker);
-        const [macro, boe, etfData, investegate, rawDividendRows, ftseYtd, ftseAligned, pressNews] = await Promise.all([
+        const [macro, boe, etfData, investegate, rawDividendRows, ftseYtd, ftseAligned, pressNews, divDataUk] = await Promise.all([
           fetchMacroData(),
           fetchBoeMacro(),
           fetchJustEtf(),
@@ -1392,16 +1422,16 @@ export async function POST(request: NextRequest) {
           fetchFtseYtd(),
           fetchFtseAligned(mesiFromDate, mesiToDate),
           fetchPortfolioNews(body.positions),
+          fetchDividendDataUk(),
         ]);
         const { rnsData, directorData, materialData } = investegate;
 
-        const paymentDateMap = extractDividendPaymentDates(materialData);
-        const dividendData   = formatDividendData(rawDividendRows, paymentDateMap);
+        const dividendData = formatDividendData(rawDividendRows, divDataUk);
 
         console.log('[monthly-brief] BoE macro:', JSON.stringify(boe));
         console.log('[monthly-brief] MESI monthly window:', mesiFromDate, '→', mesiToDate);
         console.log('[monthly-brief] FTSE aligned:', JSON.stringify(ftseAligned));
-        console.log(`[monthly-brief] RNS payment dates extracted for ${paymentDateMap.size} ticker(s)`);
+        console.log(`[monthly-brief] dividenddata.co.uk records for ${divDataUk.size} ticker(s)`);
 
         const portfolioJSON  = buildPortfolioJSON(body.positions, body.monthlyPerf);
         const unitValueStats = buildUnitValueStats(body.unitValues);
