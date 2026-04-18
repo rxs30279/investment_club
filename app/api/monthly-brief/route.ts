@@ -1137,7 +1137,7 @@ function buildPart2Message(
     'Style it as a dark card with an emerald accent border.',
 
     '4. PRESS COVERAGE — Use the PRESS NEWS data and MEMBER READING LIST below. ' +
-    'Table: Date | Company | Headline | Source | Impact (Positive / Negative / Neutral). ' +
+    'Table: Date | Ticker | Company | Headline | Source | Impact (Positive / Negative / Neutral). ' +
     'Select the 10–15 most significant stories; prioritise FT and Bloomberg sources. ' +
     'If MEMBER READING LIST articles are present, render them in a separate highlighted card titled "Members\' Reading List" ' +
     'immediately below the main table, with a short 2-sentence note on why each article is relevant to the portfolio. ' +
@@ -1162,7 +1162,7 @@ function buildPart2Message(
     '  <div class="index-card-note">One sentence on what drove this group and any outliers.</div>\n' +
     '</div>\n' +
     'Use class "pct-pos" for positive, "pct-neg" for negative. Cards stacked vertically. Do not use a flex row.\n\n' +
-    'D) DROPDOWN — <details> with stock-by-stock contribution table (Ticker | Monthly Change | Contribution | Notes), sorted best to worst.',
+    'D) DROPDOWN — <details> with stock-by-stock contribution table (Ticker | Company | Monthly Change | Contribution | Notes), sorted best to worst.',
   ].join('\n\n');
 
   return (
@@ -1214,10 +1214,10 @@ function buildPart3Message(
 
     '8. RESULTS & CORPORATE ACTIONS — Two sub-sections in one card.\n' +
     'Sub-section A — Results & Corporate Actions: Use the MATERIAL RNS DATA provided. ' +
-    'For each item: Ticker | Category | Date | Key numbers from summary | Verdict (Beat/In-line/Miss/Transformative). ' +
+    'For each item: Ticker | Company | Category | Date | Key numbers from summary | Verdict (Beat/In-line/Miss/Transformative). ' +
     'Group by category. Dropdown: full summary per item. If no material announcements, say so.\n' +
     'Sub-section B — Director Dealings: Use the DIRECTOR DEALINGS DATA provided (live from Investegate). ' +
-    'Table: Date | Ticker | Director/Role | Buy/Sell | Shares | Price (p) | Value £ | Signal. ' +
+    'Table: Date | Ticker | Company | Director/Role | Buy/Sell | Shares | Price (p) | Value £ | Signal. ' +
     'If no dealings say so clearly. Interpret sentiment: buying = bullish insider signal, selling = neutral unless large % of holding. ' +
     'Dropdown: context on each dealing.',
 
