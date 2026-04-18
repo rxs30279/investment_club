@@ -9,9 +9,12 @@ import { supabase } from '@/lib/supabase';
 //     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
 //     contributor_name text NOT NULL,
 //     title text NOT NULL,
-//     body text NOT NULL,
+//     body text,
+//     pdf_url text,
+//     pdf_name text,
 //     added_at timestamptz DEFAULT now() NOT NULL
 //   );
+// Plus a public Storage bucket named `member-articles`.
 
 function reportMonthLabel() {
   return new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
@@ -29,7 +32,9 @@ interface MemberArticle {
   id:               string;
   contributor_name: string;
   title:            string;
-  body:             string;
+  body:             string | null;
+  pdf_url:          string | null;
+  pdf_name:         string | null;
   added_at:         string; // ISO timestamp from Supabase
 }
 
@@ -76,7 +81,7 @@ function ReadingList({
   saveError,
 }: {
   articles: MemberArticle[];
-  onAdd: (name: string, title: string, body: string) => void;
+  onAdd: (name: string, title: string, body: string, pdf: File | null) => void;
   onDelete: (id: string) => void;
   saving: boolean;
   saveError: string | null;
@@ -84,14 +89,18 @@ function ReadingList({
   const [name,  setName]  = useState('');
   const [title, setTitle] = useState('');
   const [body,  setBody]  = useState('');
+  const [pdf,   setPdf]   = useState<File | null>(null);
   const [open,  setOpen]  = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function submit() {
-    if (!name.trim() || !title.trim() || !body.trim()) return;
-    onAdd(name.trim(), title.trim(), body.trim());
+    if (!name.trim() || !title.trim() || (!body.trim() && !pdf)) return;
+    onAdd(name.trim(), title.trim(), body.trim(), pdf);
     setName('');
     setTitle('');
     setBody('');
+    setPdf(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setOpen(false);
   }
 
@@ -140,12 +149,27 @@ function ReadingList({
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-emerald-600"
             />
             <textarea
-              placeholder="Paste the article text, excerpt, or URL here..."
+              placeholder="Paste the article text, excerpt, or URL here (optional if attaching a PDF)..."
               value={body}
               onChange={e => setBody(e.target.value)}
               rows={6}
               className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 text-sm resize-y focus:outline-none focus:border-emerald-600"
             />
+            <div>
+              <label className="block text-xs text-gray-500 mb-1.5">Attach a PDF (optional)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={e => setPdf(e.target.files?.[0] ?? null)}
+                className="block w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-gray-800 file:text-gray-300 file:text-xs file:font-medium hover:file:bg-gray-700 file:cursor-pointer cursor-pointer"
+              />
+              {pdf && (
+                <p className="mt-1.5 text-xs text-gray-500 truncate">
+                  {pdf.name} ({(pdf.size / 1024).toFixed(0)} KB)
+                </p>
+              )}
+            </div>
           </div>
           {saveError && (
             <p className="mt-2 text-red-400 text-xs">{saveError}</p>
@@ -153,7 +177,7 @@ function ReadingList({
           <div className="flex justify-end mt-3">
             <button
               onClick={submit}
-              disabled={!name.trim() || !title.trim() || !body.trim() || saving}
+              disabled={!name.trim() || !title.trim() || (!body.trim() && !pdf) || saving}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm font-medium transition-colors"
             >
               {saving ? 'Saving…' : 'Submit Article'}
@@ -202,9 +226,24 @@ function ReadingList({
               </summary>
               <div className="px-4 pb-4 pt-1 border-t border-gray-800">
                 <p className="text-gray-400 text-xs mb-2">{formatDate(article.added_at)}</p>
-                <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed break-words">
-                  {article.body}
-                </p>
+                {article.body && (
+                  <p className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed break-words">
+                    {article.body}
+                  </p>
+                )}
+                {article.pdf_url && (
+                  <a
+                    href={article.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-700 text-emerald-400 hover:text-emerald-300 hover:border-emerald-700 transition-colors ${article.body ? 'mt-3' : ''}`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {article.pdf_name || 'View PDF'}
+                  </a>
+                )}
               </div>
             </details>
           ))}
@@ -260,13 +299,38 @@ export default function MonthlyBriefPage() {
     }
   }, [html]);
 
-  async function handleAdd(name: string, title: string, body: string) {
+  async function handleAdd(name: string, title: string, body: string, pdf: File | null) {
     setSaving(true);
     setSaveError(null);
     try {
+      let pdfUrl: string | null = null;
+      let pdfName: string | null = null;
+      if (pdf) {
+        const safeName = pdf.name.replace(/[^\w.\-]/g, '_');
+        const path = `${Date.now()}-${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from('member-articles')
+          .upload(path, pdf, { contentType: 'application/pdf' });
+        if (uploadError) {
+          console.error('[member_articles] PDF upload error:', uploadError.message);
+          setSaveError(uploadError.message.toLowerCase().includes('not found')
+            ? 'The `member-articles` storage bucket does not exist in Supabase yet. Please create it as a public bucket.'
+            : `PDF upload failed: ${uploadError.message}`);
+          return;
+        }
+        pdfUrl  = supabase.storage.from('member-articles').getPublicUrl(path).data.publicUrl;
+        pdfName = pdf.name;
+      }
+
       const { data, error } = await supabase
         .from('member_articles')
-        .insert({ contributor_name: name, title, body })
+        .insert({
+          contributor_name: name,
+          title,
+          body:     body || null,
+          pdf_url:  pdfUrl,
+          pdf_name: pdfName,
+        })
         .select()
         .single();
       if (error) {
@@ -283,6 +347,11 @@ export default function MonthlyBriefPage() {
   }
 
   async function handleDelete(id: string) {
+    const article = articles.find(a => a.id === id);
+    if (article?.pdf_url) {
+      const path = article.pdf_url.split('/member-articles/')[1];
+      if (path) await supabase.storage.from('member-articles').remove([path]);
+    }
     await supabase.from('member_articles').delete().eq('id', id);
     setArticles(prev => prev.filter(a => a.id !== id));
   }
@@ -349,13 +418,24 @@ export default function MonthlyBriefPage() {
                 <p className="text-red-400 text-xs mb-2">
                   The <code className="font-mono bg-red-900/40 px-1 rounded">member_articles</code> table does not exist in Supabase yet. Run this migration in the Supabase SQL editor:
                 </p>
-                <pre className="bg-gray-900 text-gray-300 text-xs rounded-lg p-3 overflow-x-auto whitespace-pre">{`CREATE TABLE member_articles (
+                <pre className="bg-gray-900 text-gray-300 text-xs rounded-lg p-3 overflow-x-auto whitespace-pre">{`-- New install:
+CREATE TABLE member_articles (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   contributor_name text NOT NULL,
   title text NOT NULL,
-  body text NOT NULL,
+  body text,
+  pdf_url text,
+  pdf_name text,
   added_at timestamptz DEFAULT now() NOT NULL
-);`}</pre>
+);
+
+-- If the table already exists, run these instead:
+ALTER TABLE member_articles ALTER COLUMN body DROP NOT NULL;
+ALTER TABLE member_articles ADD COLUMN IF NOT EXISTS pdf_url text;
+ALTER TABLE member_articles ADD COLUMN IF NOT EXISTS pdf_name text;
+
+-- Also create a PUBLIC Storage bucket named "member-articles" via the
+-- Supabase dashboard (Storage → New bucket → Public).`}</pre>
               </div>
             )}
             <ReadingList
