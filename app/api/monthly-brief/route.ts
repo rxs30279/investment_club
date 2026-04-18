@@ -14,7 +14,6 @@
 //   - Material RNS summaries (results, trading updates, M&A etc.) — Investegate
 //   - Director/PDMR dealing summaries                             — Investegate
 //   - Dividend history (last 12 months, ex-div dates + amounts)   — Yahoo Finance
-//   - Upcoming dividend ex-div + payment dates                    — dividenddata.co.uk
 //
 // DeepSeek uses its training knowledge only for fields not covered above
 // (e.g. index membership, geographic revenue mix, takeover activity narrative).
@@ -121,164 +120,32 @@ async function fetchDividendRows(positions: Position[]): Promise<DividendRow[]> 
   return results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
 }
 
-// Payment dates come from dividenddata.co.uk — two tables merged:
-//   - exdividenddate.py?m=alldividends  : EPIC | Name | Market | Price | Dividend(img) | Impact | Declaration | Ex-Div | Payment
-//   - dividend-payment-dates.py?m=...   : EPIC | Name | Market | Price | Payment
-// Both publish DD-MMM dates (no year). We resolve year by rolling forward:
-// a parsed date before today is assumed to be next year; otherwise current year.
-// dividend amounts are PNG images (deliberately obfuscated), so we match back
-// to the Yahoo ex-div rows by ticker + nearest ex-div date.
-interface DividendDataRecord { exDiv: string | null; paymentDate: string; }
-
-const MONTH_LOOKUP: Record<string, string> = {
-  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-  jul: '07', aug: '08', sep: '09', sept: '09', oct: '10', nov: '11', dec: '12',
-};
-
-function parseDdMmm(raw: string, today: Date): string | null {
-  const m = raw.trim().match(/^(\d{1,2})[-\s]([A-Za-z]{3,4})$/);
-  if (!m) return null;
-  const mm = MONTH_LOOKUP[m[2].toLowerCase()];
-  if (!mm) return null;
-  const dd = m[1].padStart(2, '0');
-  const curYear = today.getFullYear();
-  const candidate = `${curYear}-${mm}-${dd}`;
-  const candidateMs = Date.parse(candidate);
-  // If the parsed date is more than 60 days behind today, assume next year.
-  // If it's more than 9 months ahead, assume previous year (rare, but handles
-  // Jan rows listed in Dec).
-  const diffDays = (candidateMs - today.getTime()) / 86_400_000;
-  if (diffDays < -60) return `${curYear + 1}-${mm}-${dd}`;
-  if (diffDays > 275) return `${curYear - 1}-${mm}-${dd}`;
-  return candidate;
-}
-
-function extractTdTexts(row: string): string[] {
-  return [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
-    .map(m => m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
-}
-
-async function fetchDividendDataUk(): Promise<Map<string, DividendDataRecord[]>> {
-  const map = new Map<string, DividendDataRecord[]>();
-  const today = new Date();
-
-  // Full browser-style headers — dividenddata.co.uk appears to block requests
-  // with a minimal UA when they come from cloud data-center IPs (Vercel).
-  // Sending a plausible Chrome header set improves the hit rate.
-  const headers: HeadersInit = {
-    'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-GB,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Referer':         'https://www.dividenddata.co.uk/',
-    'Upgrade-Insecure-Requests': '1',
-    'Sec-Fetch-Dest':  'document',
-    'Sec-Fetch-Mode':  'navigate',
-    'Sec-Fetch-Site':  'same-origin',
-    'Sec-Fetch-User':  '?1',
-  };
-
-  async function fetchPage(url: string): Promise<string> {
-    try {
-      const r = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
-      const text = r.ok ? await r.text() : '';
-      const titleMatch = text.match(/<title[^>]*>([^<]*)<\/title>/i);
-      const hasTbody = text.includes('<tbody>');
-      console.log(
-        `[dividenddata] ${url} status=${r.status} bytes=${text.length} ` +
-        `title="${titleMatch?.[1] ?? '-'}" tbody=${hasTbody} cf-ray=${r.headers.get('cf-ray') ?? '-'} ` +
-        `first100="${text.slice(0, 100).replace(/\s+/g, ' ')}"`
-      );
-      return text;
-    } catch (err) {
-      console.log(`[dividenddata] ${url} FETCH_ERROR: ${(err as Error).message}`);
-      return '';
-    }
-  }
-
-  const [exDivHtml, payHtml] = await Promise.all([
-    fetchPage('https://www.dividenddata.co.uk/exdividenddate.py?m=alldividends'),
-    fetchPage('https://www.dividenddata.co.uk/dividend-payment-dates.py?m=alldividends'),
-  ]);
-
-  function addRecord(epic: string, rec: DividendDataRecord) {
-    const key = epic.toUpperCase().replace(/\.$/, '');
-    if (!key) return;
-    const list = map.get(key) ?? [];
-    list.push(rec);
-    map.set(key, list);
-  }
-
-  // exdividenddate.py: 9 TDs — [EPIC, Name, Market, Price, DivImg, Impact, Declaration, Ex-Div, Payment]
-  const exBody = exDivHtml.slice(exDivHtml.indexOf('<tbody>'), exDivHtml.indexOf('</tbody>', exDivHtml.indexOf('<tbody>')));
-  for (const row of exBody.split(/<tr[^>]*>/).slice(1)) {
-    const tds = extractTdTexts(row);
-    if (tds.length < 9) continue;
-    const [epic, , , , , , , exDivRaw, paymentRaw] = tds;
-    const exDiv = parseDdMmm(exDivRaw, today);
-    const paymentDate = parseDdMmm(paymentRaw, today);
-    if (!paymentDate) continue;
-    addRecord(epic, { exDiv, paymentDate });
-  }
-
-  // dividend-payment-dates.py: 5 TDs — [EPIC, Name, Market, Price, Payment]
-  const payBody = payHtml.slice(payHtml.indexOf('<tbody>'), payHtml.indexOf('</tbody>', payHtml.indexOf('<tbody>')));
-  for (const row of payBody.split(/<tr[^>]*>/).slice(1)) {
-    const tds = extractTdTexts(row);
-    if (tds.length < 5) continue;
-    const [epic, , , , paymentRaw] = tds;
-    const paymentDate = parseDdMmm(paymentRaw, today);
-    if (!paymentDate) continue;
-    addRecord(epic, { exDiv: null, paymentDate });
-  }
-
-  return map;
-}
-
-// Emits UPCOMING dividends only — rows from dividenddata.co.uk matched to
-// portfolio holdings. Yahoo historical amounts are shown alongside as a guide
-// to the likely size of the upcoming payment (the actual amount is behind an
-// image on the source page). Holdings with no upcoming dividend are omitted.
-function formatDividendData(rows: DividendRow[], paymentDates: Map<string, DividendDataRecord[]>): string {
-  interface UpcomingRow {
-    ticker: string;
-    name: string;
-    exDiv: string;
-    paymentDate: string;
-    recentAmount: number | null;
-  }
-
-  const upcoming: UpcomingRow[] = [];
-  for (const { ticker, name, divs } of rows) {
-    const bareTicker = ticker.toUpperCase().replace(/\.[A-Z]{1,2}$/, '').replace(/\.$/, '');
-    const records = paymentDates.get(bareTicker) ?? [];
-    const withExDiv = records.filter(r => r.exDiv !== null);
-    if (withExDiv.length === 0) continue;
-    const recentAmount = divs[0]?.amount ?? null;
-    for (const r of withExDiv) {
-      upcoming.push({ ticker, name, exDiv: r.exDiv!, paymentDate: r.paymentDate, recentAmount });
-    }
-  }
-
-  if (upcoming.length === 0) {
-    return '[No upcoming dividends found for any portfolio holding on dividenddata.co.uk]';
-  }
-
-  upcoming.sort((a, b) => a.exDiv.localeCompare(b.exDiv));
-
+// Emits the portfolio's dividend history (last 12 months) from Yahoo Finance.
+// Payment dates are deliberately omitted — the upstream source
+// (dividenddata.co.uk) serves an empty HTML shell to Vercel's data-center
+// IPs, so we can't source them reliably from a serverless environment.
+function formatDividendData(rows: DividendRow[]): string {
   const lines: string[] = [
-    '=== Upcoming dividends (sourced from dividenddata.co.uk — only holdings with a confirmed upcoming ex-div or payment date) ===\n',
-    'Recent Amount (p) is the most recent historical dividend per share from Yahoo Finance, shown as a guide to the likely size of the upcoming payment. The actual upcoming amount may differ (e.g. interim vs. final).',
-    '',
-    'Ticker     | Company                        | Ex-Div Date | Payment Date | Recent Amount (p)',
-    '-----------|--------------------------------|-------------|--------------|------------------',
+    '=== Dividend history (ex-div dates + amounts from Yahoo Finance — last 12 months per holding) ===\n',
+    'Ticker     | Company                        | Ex-Div Date | Amount (p)',
+    '-----------|--------------------------------|-------------|------------',
   ];
-  for (const u of upcoming) {
-    const amt = u.recentAmount !== null ? u.recentAmount.toFixed(4).padStart(10) : '        —';
-    lines.push(
-      `${u.ticker.padEnd(10)} | ${u.name.substring(0, 30).padEnd(30)} | ${u.exDiv}  | ${u.paymentDate}   | ${amt}`
-    );
+
+  let anyData = false;
+  for (const { ticker, name, divs } of rows) {
+    if (divs.length === 0) {
+      lines.push(`${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | No dividend data found`);
+      continue;
+    }
+    anyData = true;
+    for (const d of divs) {
+      lines.push(
+        `${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | ${d.date}  | ${d.amount.toFixed(4).padStart(10)}`
+      );
+    }
   }
+
+  if (!anyData) return '[Dividend data unavailable — use your knowledge for dividend dates and yields]';
   return lines.join('\n');
 }
 
@@ -1263,13 +1130,12 @@ function buildPart3Message(
     'Then a Theme table: Theme|Direction|Strength|ETF Signal|Portfolio Impact — cover: Energy, Gold/Metals, Nuclear, M&A, Dividends, BOE Rates, Defence, Rare Earths, Activism, Labour Risk, AI, Foreign Buyers, Sterling, Clean Energy. ' +
     'Dropdown: bull/bear case 3 points each per sector, and detail on each theme.',
 
-    '7. INCOME CORNER — Upcoming dividends only. Use the DIVIDEND DATA provided, which already contains only portfolio holdings with a confirmed upcoming ex-div and payment date (from dividenddata.co.uk). Do NOT add historical ex-div rows, and do NOT invent entries for holdings not listed. ' +
-    'Table: Ticker | Company | Ex-Div Date | Payment Date | Recent Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
-    'Copy Ticker, Company, Ex-Div Date, Payment Date and Recent Amount directly from the DIVIDEND DATA block. Sort by Ex-Div Date ascending (nearest first). ' +
+    '7. INCOME CORNER — Use the DIVIDEND DATA provided (ex-div dates + amounts from Yahoo Finance, last 12 months per holding). ' +
+    'Table: Ticker | Company | Ex-Div Date | Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
+    'Copy Ticker, Company, Ex-Div Date and Amount directly from the DIVIDEND DATA block. Sort by Ex-Div Date descending (most recent first). Do NOT include a Payment Date column — payment dates are not in the data. ' +
     'Annual Yield est. and Vs FTSE100 avg. — compute from your own knowledge of the holding (typical annual dividend per share ÷ current price) vs FTSE100 ~3.5% dividend yield / ~6.5% total cash yield. ' +
-    'Above the table, add a brief sentence listing which holdings pay in the next 30 days (total cash expected, if you can reasonably estimate from Recent Amount × holding size from PORTFOLIO). Mention any notable cuts, increases or buybacks you are aware of. ' +
-    'If DIVIDEND DATA says "[No upcoming dividends found...]" then say so plainly in one line and skip the table. ' +
-    'Dropdown: context / commentary per holding.',
+    'Call out dividends paid recently, any cuts or increases vs prior year, and buybacks you are aware of. ' +
+    'Dropdown: dividend history per holding.',
 
     '8. RESULTS & CORPORATE ACTIONS — Two sub-sections in one card.\n' +
     'Sub-section A — Results & Corporate Actions: Use the MATERIAL RNS DATA provided. ' +
@@ -1442,7 +1308,7 @@ export async function POST(request: NextRequest) {
 
         // Fetch all external data in parallel
         const tickers = body.positions.map(p => p.ticker);
-        const [macro, boe, etfData, investegate, rawDividendRows, ftseYtd, ftseAligned, pressNews, divDataUk] = await Promise.all([
+        const [macro, boe, etfData, investegate, rawDividendRows, ftseYtd, ftseAligned, pressNews] = await Promise.all([
           fetchMacroData(),
           fetchBoeMacro(),
           fetchJustEtf(),
@@ -1451,16 +1317,14 @@ export async function POST(request: NextRequest) {
           fetchFtseYtd(),
           fetchFtseAligned(mesiFromDate, mesiToDate),
           fetchPortfolioNews(body.positions),
-          fetchDividendDataUk(),
         ]);
         const { rnsData, directorData, materialData } = investegate;
 
-        const dividendData = formatDividendData(rawDividendRows, divDataUk);
+        const dividendData = formatDividendData(rawDividendRows);
 
         console.log('[monthly-brief] BoE macro:', JSON.stringify(boe));
         console.log('[monthly-brief] MESI monthly window:', mesiFromDate, '→', mesiToDate);
         console.log('[monthly-brief] FTSE aligned:', JSON.stringify(ftseAligned));
-        console.log(`[monthly-brief] dividenddata.co.uk records for ${divDataUk.size} ticker(s)`);
 
         const portfolioJSON  = buildPortfolioJSON(body.positions, body.monthlyPerf);
         const unitValueStats = buildUnitValueStats(body.unitValues);
