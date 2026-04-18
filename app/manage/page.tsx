@@ -397,7 +397,32 @@ function ManagePageContent() {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(err.error ?? `Request failed: ${res.status}`);
       }
-      const { html, error: reportError, dbError } = await res.json();
+
+      // The route streams NDJSON events: { type: 'progress' | 'chunk' | 'done' | 'error', ... }.
+      // Per-chunk progress keeps the connection warm so it can't time out.
+      if (!res.body) throw new Error('No response stream.');
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer    = '';
+      let html: string | null = null;
+      let dbError: string | null = null;
+      let reportError: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let evt;
+          try { evt = JSON.parse(line); } catch { continue; }
+          if (evt.type === 'done')  { html = evt.html; dbError = evt.dbError; }
+          if (evt.type === 'error') { reportError = evt.error; }
+        }
+      }
+
       if (reportError) throw new Error(reportError);
       if (!html) throw new Error('No HTML content returned.');
       if (dbError) console.warn('[monthly-brief] Report generated but DB save failed:', dbError);

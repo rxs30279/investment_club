@@ -1279,7 +1279,11 @@ function cap(text: string, maxChars: number): string {
 
 // ── DeepSeek streaming call ───────────────────────────────────────────────────
 
-async function callDeepSeek(systemPrompt: string, userMessage: string): Promise<string> {
+async function callDeepSeek(
+  systemPrompt: string,
+  userMessage: string,
+  onChunk?: (totalChars: number) => void,
+): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: {
@@ -1321,7 +1325,10 @@ async function callDeepSeek(systemPrompt: string, userMessage: string): Promise<
       try {
         const json    = JSON.parse(data);
         const content = json.choices?.[0]?.delta?.content;
-        if (content) output += content;
+        if (content) {
+          output += content;
+          onChunk?.(output.length);
+        }
       } catch { /* ignore malformed chunks */ }
     }
   }
@@ -1346,116 +1353,108 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
-  // Derive the MESI monthly measurement dates from unit values so FTSE monthly
-  // returns can be fetched for the exact same window — apples-to-apples comparison.
-  const sortedUV   = [...body.unitValues].sort(
-    (a, b) => new Date(a.valuation_date).getTime() - new Date(b.valuation_date).getTime()
-  );
-  const mesiFromDate = sortedUV.at(-2)?.valuation_date ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-  const mesiToDate   = sortedUV.at(-1)?.valuation_date ?? new Date().toISOString().slice(0, 10);
-  // Month name derived from measurement end date (e.g. "March"), not the current calendar month
-  const perfMonth    = new Date(mesiToDate).toLocaleString('en-GB', { month: 'long' });
+  // Stream NDJSON events back to the client. Without this, the connection sits
+  // idle for ~140s while DeepSeek generates, and intermediaries (browser tab,
+  // proxies) close it with "Failed to fetch". Per-chunk progress events keep
+  // bytes flowing so the connection stays warm.
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      function send(obj: object): void {
+        try { controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n')); } catch { /* controller closed */ }
+      }
 
-  // Per-stock monthly_change_pct (used by the Index Membership Breakdown cards) is sourced
-  // from /api/monthly-performance which measures from the 1st of the current calendar month
-  // to today — so the subtitle under that heading must reflect that window, not the fund's
-  // unit-value measurement window.
-  const [curYr, curMo, curDy] = body.currentDate.split('-').map(Number);
-  const curMonthShort = new Date(curYr, curMo - 1, curDy).toLocaleString('en-GB', { month: 'short' });
-  const indexMtdWindow = `1 – ${curDy} ${curMonthShort} ${curYr}`;
+      try {
+        send({ type: 'progress', stage: 'fetching-data' });
 
-  // Fetch all external data in parallel
-  // Note: fetchAllInvestegateData fetches the 30 daily Investegate pages ONCE
-  // and splits results into rnsData / directorData / materialData in a single pass.
-  const tickers = body.positions.map(p => p.ticker);
-  const [macro, boe, etfData, investegate, rawDividendRows, ftseYtd, ftseAligned, pressNews] = await Promise.all([
-    fetchMacroData(),
-    fetchBoeMacro(),
-    fetchJustEtf(),
-    fetchAllInvestegateData(tickers),
-    fetchDividendRows(body.positions),
-    fetchFtseYtd(),
-    fetchFtseAligned(mesiFromDate, mesiToDate),
-    fetchPortfolioNews(body.positions),
-  ]);
-  const { rnsData, directorData, materialData } = investegate;
+        // Derive the MESI monthly measurement dates from unit values so FTSE monthly
+        // returns can be fetched for the exact same window — apples-to-apples comparison.
+        const sortedUV   = [...body.unitValues].sort(
+          (a, b) => new Date(a.valuation_date).getTime() - new Date(b.valuation_date).getTime()
+        );
+        const mesiFromDate = sortedUV.at(-2)?.valuation_date ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+        const mesiToDate   = sortedUV.at(-1)?.valuation_date ?? new Date().toISOString().slice(0, 10);
+        const perfMonth    = new Date(mesiToDate).toLocaleString('en-GB', { month: 'long' });
 
-  // Merge Yahoo ex-div rows with payment dates scraped from RNS Dividend summaries
-  const paymentDateMap = extractDividendPaymentDates(materialData);
-  const dividendData   = formatDividendData(rawDividendRows, paymentDateMap);
+        const [curYr, curMo, curDy] = body.currentDate.split('-').map(Number);
+        const curMonthShort = new Date(curYr, curMo - 1, curDy).toLocaleString('en-GB', { month: 'short' });
+        const indexMtdWindow = `1 – ${curDy} ${curMonthShort} ${curYr}`;
 
-  console.log('[monthly-brief] BoE macro:', JSON.stringify(boe));
-  console.log('[monthly-brief] MESI monthly window:', mesiFromDate, '→', mesiToDate);
-  console.log('[monthly-brief] FTSE aligned:', JSON.stringify(ftseAligned));
-  console.log('[monthly-brief] RNS index preview:', rnsData.substring(0, 200));
-  console.log('[monthly-brief] Material RNS preview:', materialData.substring(0, 300));
-  console.log('[monthly-brief] Director dealings preview:', directorData.substring(0, 300));
-  console.log(`[monthly-brief] RNS payment dates extracted for ${paymentDateMap.size} ticker(s)`);
-  console.log('[monthly-brief] Dividend data preview:', dividendData.substring(0, 300));
-  console.log('[monthly-brief] Press news preview:', pressNews.substring(0, 300));
+        // Fetch all external data in parallel
+        const tickers = body.positions.map(p => p.ticker);
+        const [macro, boe, etfData, investegate, rawDividendRows, ftseYtd, ftseAligned, pressNews] = await Promise.all([
+          fetchMacroData(),
+          fetchBoeMacro(),
+          fetchJustEtf(),
+          fetchAllInvestegateData(tickers),
+          fetchDividendRows(body.positions),
+          fetchFtseYtd(),
+          fetchFtseAligned(mesiFromDate, mesiToDate),
+          fetchPortfolioNews(body.positions),
+        ]);
+        const { rnsData, directorData, materialData } = investegate;
 
-  const portfolioJSON  = buildPortfolioJSON(body.positions, body.monthlyPerf);
-  const unitValueStats = buildUnitValueStats(body.unitValues);
-  const macroJSON      = buildMacroJSON(macro, boe, ftseYtd, ftseAligned, body.reportMonth);
+        const paymentDateMap = extractDividendPaymentDates(materialData);
+        const dividendData   = formatDividendData(rawDividendRows, paymentDateMap);
 
-  const systemPrompt =
-    'You are a friendly but knowledgeable investment analyst writing a monthly performance report for a UK private investment club. ' +
-    'Your tone is warm, engaging and accessible - think a knowledgeable friend explaining markets over a coffee, not a stuffy City broker. ' +
-    'Use plain English. Explain jargon where used. Reserve detailed analysis for expandable drop-down sections so the page stays clean and readable. ' +
-    'Where you express a forward view, be clear it is opinion not advice.';
+        console.log('[monthly-brief] BoE macro:', JSON.stringify(boe));
+        console.log('[monthly-brief] MESI monthly window:', mesiFromDate, '→', mesiToDate);
+        console.log('[monthly-brief] FTSE aligned:', JSON.stringify(ftseAligned));
+        console.log(`[monthly-brief] RNS payment dates extracted for ${paymentDateMap.size} ticker(s)`);
 
-  try {
-    // Three sequential DeepSeek calls so none hits the 8192-token output cap.
-    // Part 1: Contents list + sections 1–3 (Market Overview — macro, ETF flow, outlook)
-    // Part 2: sections 4–5  (Press Coverage + Portfolio vs Market)
-    // Part 3: sections 6–9 + footer + closing </div>  (Sector/Theme, Income, Director Dealings, One to Watch)
-    // The three HTML fragments are concatenated before saving.
+        const portfolioJSON  = buildPortfolioJSON(body.positions, body.monthlyPerf);
+        const unitValueStats = buildUnitValueStats(body.unitValues);
+        const macroJSON      = buildMacroJSON(macro, boe, ftseYtd, ftseAligned, body.reportMonth);
 
-    const part1Message = buildPart1Message(
-      portfolioJSON, macroJSON, etfData,
-      body.reportMonth, body.currentDate,
-    );
-    const part2Message = buildPart2Message(
-      portfolioJSON, macroJSON, unitValueStats, materialData,
-      pressNews, body.userArticles ?? '',
-      body.reportMonth, body.currentDate, perfMonth, indexMtdWindow,
-    );
-    const part3Message = buildPart3Message(
-      portfolioJSON, macroJSON, etfData, rnsData, materialData,
-      dividendData, directorData,
-      body.reportMonth, body.currentDate,
-    );
+        const systemPrompt =
+          'You are a friendly but knowledgeable investment analyst writing a monthly performance report for a UK private investment club. ' +
+          'Your tone is warm, engaging and accessible - think a knowledgeable friend explaining markets over a coffee, not a stuffy City broker. ' +
+          'Use plain English. Explain jargon where used. Reserve detailed analysis for expandable drop-down sections so the page stays clean and readable. ' +
+          'Where you express a forward view, be clear it is opinion not advice.';
 
-    console.log('[monthly-brief] Launching all 3 parts in parallel. Prompt lengths:', part1Message.length, part2Message.length, part3Message.length);
+        // Three parallel DeepSeek calls so none hits the 8192-token output cap.
+        const part1Message = buildPart1Message(
+          portfolioJSON, macroJSON, etfData,
+          body.reportMonth, body.currentDate,
+        );
+        const part2Message = buildPart2Message(
+          portfolioJSON, macroJSON, unitValueStats, materialData,
+          pressNews, body.userArticles ?? '',
+          body.reportMonth, body.currentDate, perfMonth, indexMtdWindow,
+        );
+        const part3Message = buildPart3Message(
+          portfolioJSON, macroJSON, etfData, rnsData, materialData,
+          dividendData, directorData,
+          body.reportMonth, body.currentDate,
+        );
 
-    const [part1Raw, part2Raw, part3Raw] = await Promise.all([
-      callDeepSeek(systemPrompt, part1Message),
-      callDeepSeek(systemPrompt, part2Message),
-      callDeepSeek(systemPrompt, part3Message),
-    ]);
+        console.log('[monthly-brief] Launching all 3 parts in parallel. Prompt lengths:', part1Message.length, part2Message.length, part3Message.length);
+        send({ type: 'progress', stage: 'generating' });
 
-    console.log('[monthly-brief] All parts done. Raw lengths:', part1Raw.length, part2Raw.length, part3Raw.length);
+        const [part1Raw, part2Raw, part3Raw] = await Promise.all([
+          callDeepSeek(systemPrompt, part1Message, chars => send({ type: 'chunk', part: 1, chars })),
+          callDeepSeek(systemPrompt, part2Message, chars => send({ type: 'chunk', part: 2, chars })),
+          callDeepSeek(systemPrompt, part3Message, chars => send({ type: 'chunk', part: 3, chars })),
+        ]);
 
-    if (!part1Raw.trim()) return Response.json({ error: 'No content generated (part 1).' }, { status: 500 });
-    if (!part2Raw.trim()) return Response.json({ error: 'No content generated (part 2).' }, { status: 500 });
-    if (!part3Raw.trim()) return Response.json({ error: 'No content generated (part 3).' }, { status: 500 });
+        console.log('[monthly-brief] All parts done. Raw lengths:', part1Raw.length, part2Raw.length, part3Raw.length);
 
-    const part1Html = cleanFragment(part1Raw);
-    const part2Html = cleanFragment(part2Raw);
-    const part3Html = cleanFragment(part3Raw);
+        if (!part1Raw.trim()) { send({ type: 'error', error: 'No content generated (part 1).' }); controller.close(); return; }
+        if (!part2Raw.trim()) { send({ type: 'error', error: 'No content generated (part 2).' }); controller.close(); return; }
+        if (!part3Raw.trim()) { send({ type: 'error', error: 'No content generated (part 3).' }); controller.close(); return; }
 
-    console.log('[monthly-brief] Cleaned lengths:', part1Html.length, part2Html.length, part3Html.length);
+        const part1Html = cleanFragment(part1Raw);
+        const part2Html = cleanFragment(part2Raw);
+        const part3Html = cleanFragment(part3Raw);
 
-    const htmlOutput = part1Html + '\n' + part2Html + '\n' + part3Html;
+        const htmlOutput = part1Html + '\n' + part2Html + '\n' + part3Html;
 
-    if (!htmlOutput.trim()) {
-      return Response.json({ error: 'No content generated.' }, { status: 500 });
-    }
+        if (!htmlOutput.trim()) { send({ type: 'error', error: 'No content generated.' }); controller.close(); return; }
 
-    // Wrap in a proper HTML document so all three fragments are rendered together.
-    // Without this, if DeepSeek's Part 1 generates </html> the browser silently
-    // drops everything that follows it (Parts 2 and 3).
-    const finalHtml = `<!DOCTYPE html>
+        // Wrap in a proper HTML document so all three fragments are rendered together.
+        // Without this, if DeepSeek's Part 1 generates </html> the browser silently
+        // drops everything that follows it (Parts 2 and 3).
+        const finalHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1528,38 +1527,47 @@ ${htmlOutput}
 </body>
 </html>`;
 
-    // Save to Supabase — check if a row already exists for this month, then update or insert.
-    // This avoids relying on a unique constraint for onConflict which may not be set up.
-    const { data: existing, error: selectError } = await supabase
-      .from('monthly_reports')
-      .select('id')
-      .eq('report_month', body.reportMonth)
-      .maybeSingle();
+        send({ type: 'progress', stage: 'saving' });
 
-    if (selectError) {
-      console.error('[monthly-brief] Failed to check existing report:', selectError.message);
-    }
+        // Save to Supabase — check if a row already exists for this month, then update or insert.
+        const { data: existing, error: selectError } = await supabase
+          .from('monthly_reports')
+          .select('id')
+          .eq('report_month', body.reportMonth)
+          .maybeSingle();
 
-    const payload: Record<string, string> = {
-      report_month: body.reportMonth,
-      html: finalHtml,
-      generated_at: new Date().toISOString(),
-    };
-    // Preserve user_articles if they were passed in (column must exist — see migration note above)
-    if (body.userArticles !== undefined) payload.user_articles = body.userArticles;
-    const { error: dbError } = existing
-      ? await supabase.from('monthly_reports').update(payload).eq('report_month', body.reportMonth)
-      : await supabase.from('monthly_reports').insert(payload);
+        if (selectError) {
+          console.error('[monthly-brief] Failed to check existing report:', selectError.message);
+        }
 
-    if (dbError) {
-      console.error('[monthly-brief] Failed to save report:', dbError.message);
-      return Response.json({ html: finalHtml, dbError: dbError.message });
-    }
+        const payload: Record<string, string> = {
+          report_month: body.reportMonth,
+          html: finalHtml,
+          generated_at: new Date().toISOString(),
+        };
+        if (body.userArticles !== undefined) payload.user_articles = body.userArticles;
+        const { error: dbError } = existing
+          ? await supabase.from('monthly_reports').update(payload).eq('report_month', body.reportMonth)
+          : await supabase.from('monthly_reports').insert(payload);
 
-    return Response.json({ html: finalHtml });
+        if (dbError) console.error('[monthly-brief] Failed to save report:', dbError.message);
 
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return Response.json({ error: `DeepSeek API error: ${message}` }, { status: 500 });
-  }
+        send({ type: 'done', html: finalHtml, dbError: dbError?.message ?? null });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[monthly-brief] Generation failed:', message);
+        send({ type: 'error', error: message });
+      } finally {
+        try { controller.close(); } catch { /* already closed */ }
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 }
