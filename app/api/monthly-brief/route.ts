@@ -14,6 +14,7 @@
 //   - Material RNS summaries (results, trading updates, M&A etc.) — Investegate
 //   - Director/PDMR dealing summaries                             — Investegate
 //   - Dividend history (last 12 months, ex-div dates + amounts)   — Yahoo Finance
+//   - Dividend payment dates (where declared in last 45 days)     — extracted from RNS announcement summaries
 //
 // DeepSeek uses its training knowledge only for fields not covered above
 // (e.g. index membership, geographic revenue mix, takeover activity narrative).
@@ -107,30 +108,114 @@ async function fetchDividendHistory(ticker: string): Promise<DividendEvent[]> {
   return [];
 }
 
-async function fetchAllDividends(positions: Position[]): Promise<string> {
-  const results = await Promise.allSettled(
-    positions.map(async p => {
-      const divs = await fetchDividendHistory(p.ticker);
-      return { ticker: p.ticker, name: p.name, divs };
-    })
-  );
+interface DividendRow { ticker: string; name: string; divs: DividendEvent[]; }
 
-  const lines: string[] = ['=== Dividend history (last 12 months, ex-dividend dates from Yahoo Finance) ===\n',
-    'Ticker     | Company                        | Ex-Div Date | Amount (p) | Notes',
-    '-----------|--------------------------------|-------------|------------|------'];
+async function fetchDividendRows(positions: Position[]): Promise<DividendRow[]> {
+  const results = await Promise.allSettled(
+    positions.map(async p => ({
+      ticker: p.ticker,
+      name:   p.name,
+      divs:   await fetchDividendHistory(p.ticker),
+    }))
+  );
+  return results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
+}
+
+// Payment dates are extracted from Investegate's AI summaries of Dividend category
+// RNS announcements (the materialData feed). Summaries typically say "payable on
+// 27 March 2026" or similar — we regex that out and match back to the Yahoo
+// ex-div rows by pence amount. This only covers dividends declared within the
+// 45-day RNS window; older rows get a blank Payment Date cell.
+interface RnsPaymentRecord { amount: number; paymentDate: string; }
+
+const MONTH_LOOKUP: Record<string, string> = {
+  january: '01', february: '02', march: '03', april: '04', may: '05', june: '06',
+  july: '07', august: '08', september: '09', october: '10', november: '11', december: '12',
+  jan: '01', feb: '02', mar: '03', apr: '04', jun: '06', jul: '07', aug: '08',
+  sep: '09', sept: '09', oct: '10', nov: '11', dec: '12',
+};
+
+function parsePaymentDateString(raw: string): string | null {
+  const trimmed = raw.trim().replace(/,/g, '');
+  const word = trimmed.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (word) {
+    const mm = MONTH_LOOKUP[word[2].toLowerCase()];
+    if (!mm) return null;
+    return `${word[3]}-${mm}-${word[1].padStart(2, '0')}`;
+  }
+  const slash = trimmed.match(/^(\d{1,2})[\-/](\d{1,2})[\-/](\d{2,4})$/);
+  if (slash) {
+    let [, d, m, y] = slash;
+    if (y.length === 2) y = '20' + y;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return null;
+}
+
+// "payable on 27 March 2026" / "will be paid on 27/03/2026" / "payment date: 27 Mar 2026"
+const PAYMENT_PHRASE_RE = /(?:payable|(?:to be|due to be|expected to be|will be) paid|payment (?:will be made|date(?: is)?:?))[^\d\n]{0,60}?(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+,?\s+\d{4}|\d{1,2}[\-/]\d{1,2}[\-/](?:\d{4}|\d{2}))/i;
+const AMOUNT_PENCE_RE   = /(\d+(?:\.\d+)?)\s*(?:pence per share|pence|p per share|p)\b/i;
+
+function extractDividendPaymentDates(materialData: string): Map<string, RnsPaymentRecord[]> {
+  const map = new Map<string, RnsPaymentRecord[]>();
+  const divHeader = '--- Dividend ---';
+  const divStart = materialData.indexOf(divHeader);
+  if (divStart < 0) return map;
+  let divEnd = materialData.indexOf('\n--- ', divStart + divHeader.length);
+  if (divEnd < 0) divEnd = materialData.length;
+  const section = materialData.substring(divStart + divHeader.length, divEnd);
+
+  // Each entry: "YYYY-MM-DD  TICKER  Headline\n  → Summary"
+  const entryRe = /^(\d{4}-\d{2}-\d{2})\s+(\S+)\s+[^\n]*\n\s*→\s+([\s\S]*?)(?=\n\s*\n|\n\d{4}-\d{2}-\d{2}\s|\s*$)/gm;
+  let m: RegExpExecArray | null;
+  while ((m = entryRe.exec(section)) !== null) {
+    const ticker  = m[2].toUpperCase().replace(/\.[A-Z]{1,2}$/, '');
+    const summary = m[3];
+
+    const payMatch = summary.match(PAYMENT_PHRASE_RE);
+    if (!payMatch) continue;
+    const paymentDate = parsePaymentDateString(payMatch[1]);
+    if (!paymentDate) continue;
+
+    const amtMatch = summary.match(AMOUNT_PENCE_RE);
+    if (!amtMatch) continue;
+    const amount = parseFloat(amtMatch[1]);
+    if (!isFinite(amount)) continue;
+
+    const list = map.get(ticker) ?? [];
+    list.push({ amount, paymentDate });
+    map.set(ticker, list);
+  }
+  return map;
+}
+
+function formatDividendData(rows: DividendRow[], paymentDates: Map<string, RnsPaymentRecord[]>): string {
+  const lines: string[] = [
+    '=== Dividend data (ex-div dates + amounts from Yahoo Finance; Payment Date column pre-extracted from RNS Dividend announcements via Investegate) ===\n',
+    'Payment Date column is populated ONLY when the dividend was declared within the last 45 trading days (the RNS window) AND Investegate\'s AI summary contained a parseable payment-date phrase. Older ex-div rows correctly show "—" in that column — do not invent a date.',
+    '',
+    'Ticker     | Company                        | Ex-Div Date | Amount (p) | Payment Date | Notes',
+    '-----------|--------------------------------|-------------|------------|--------------|------',
+  ];
 
   let anyData = false;
-  for (const result of results) {
-    if (result.status !== 'fulfilled') continue;
-    const { ticker, name, divs } = result.value;
+  for (const { ticker, name, divs } of rows) {
     if (divs.length === 0) {
       lines.push(`${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | No dividend data found`);
       continue;
     }
     anyData = true;
+
+    const bareTicker = ticker.toUpperCase().replace(/\.[A-Z]{1,2}$/, '').replace(/\.$/, '');
+    const tickerPayDates = paymentDates.get(bareTicker) ?? [];
+
     for (const d of divs) {
-      // Amounts from Yahoo for UK stocks are in pence
-      lines.push(`${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | ${d.date}    | ${d.amount.toFixed(4).padStart(10)} |`);
+      const matched = tickerPayDates.find(pd => Math.abs(pd.amount - d.amount) < 0.02);
+      const payCell = matched ? matched.paymentDate : '—           ';
+      lines.push(
+        `${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | ${d.date}    |` +
+        ` ${d.amount.toFixed(4).padStart(10)} | ${payCell.padEnd(12)} |`
+      );
     }
   }
 
@@ -1119,11 +1204,10 @@ function buildPart3Message(
     'Then a Theme table: Theme|Direction|Strength|ETF Signal|Portfolio Impact — cover: Energy, Gold/Metals, Nuclear, M&A, Dividends, BOE Rates, Defence, Rare Earths, Activism, Labour Risk, AI, Foreign Buyers, Sterling, Clean Energy. ' +
     'Dropdown: bull/bear case 3 points each per sector, and detail on each theme.',
 
-    '7. INCOME CORNER — Use the DIVIDEND DATA provided (live ex-dividend dates and amounts from Yahoo Finance). ' +
-    'Also check the MATERIAL RNS DATA for any "Dividend" category announcements — their summaries often state the payment date explicitly; extract it where present. ' +
+    '7. INCOME CORNER — Use the DIVIDEND DATA provided (ex-div dates + amounts from Yahoo Finance; the Payment Date column has been pre-extracted from RNS Dividend announcement summaries and matched to each ex-div row by pence amount). ' +
     'Table: Ticker | Company | Ex-Div Date | Payment Date | Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
-    'If no payment date can be found from the RNS summaries, leave the Payment Date cell blank rather than guessing. ' +
-    'Show all holdings with dividend data sorted by ex-div date. ' +
+    'Populate Payment Date directly from the Payment Date column in DIVIDEND DATA. If that column shows "—" for a row, leave the Payment Date cell blank — do NOT infer or guess from other sources. ' +
+    'Show all holdings with dividend data sorted by ex-div date (most recent first). ' +
     'Call out dividends paid this month, upcoming ex-div dates in next 30 days, any cuts or increases vs prior year, and buybacks. ' +
     'Compare portfolio income yield to FTSE100 benchmark: ~3.5% dividend yield / ~6.5% total cash yield. ' +
     'Dropdown: dividend history per holding.',
@@ -1284,17 +1368,21 @@ export async function POST(request: NextRequest) {
   // Note: fetchAllInvestegateData fetches the 30 daily Investegate pages ONCE
   // and splits results into rnsData / directorData / materialData in a single pass.
   const tickers = body.positions.map(p => p.ticker);
-  const [macro, boe, etfData, investegate, dividendData, ftseYtd, ftseAligned, pressNews] = await Promise.all([
+  const [macro, boe, etfData, investegate, rawDividendRows, ftseYtd, ftseAligned, pressNews] = await Promise.all([
     fetchMacroData(),
     fetchBoeMacro(),
     fetchJustEtf(),
     fetchAllInvestegateData(tickers),
-    fetchAllDividends(body.positions),
+    fetchDividendRows(body.positions),
     fetchFtseYtd(),
     fetchFtseAligned(mesiFromDate, mesiToDate),
     fetchPortfolioNews(body.positions),
   ]);
   const { rnsData, directorData, materialData } = investegate;
+
+  // Merge Yahoo ex-div rows with payment dates scraped from RNS Dividend summaries
+  const paymentDateMap = extractDividendPaymentDates(materialData);
+  const dividendData   = formatDividendData(rawDividendRows, paymentDateMap);
 
   console.log('[monthly-brief] BoE macro:', JSON.stringify(boe));
   console.log('[monthly-brief] MESI monthly window:', mesiFromDate, '→', mesiToDate);
@@ -1302,6 +1390,7 @@ export async function POST(request: NextRequest) {
   console.log('[monthly-brief] RNS index preview:', rnsData.substring(0, 200));
   console.log('[monthly-brief] Material RNS preview:', materialData.substring(0, 300));
   console.log('[monthly-brief] Director dealings preview:', directorData.substring(0, 300));
+  console.log(`[monthly-brief] RNS payment dates extracted for ${paymentDateMap.size} ticker(s)`);
   console.log('[monthly-brief] Dividend data preview:', dividendData.substring(0, 300));
   console.log('[monthly-brief] Press news preview:', pressNews.substring(0, 300));
 
