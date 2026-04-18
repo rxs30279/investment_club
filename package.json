@@ -11,6 +11,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.89.0",
     "@supabase/supabase-js": "^2.100.1",
+    "@vercel/analytics": "^2.0.1",
     "autoprefixer": "^10.4.27",
     "chart.js": "^4.5.1",
     "jose": "^6.2.2",
