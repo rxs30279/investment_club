@@ -1376,9 +1376,10 @@ export async function POST(request: NextRequest) {
         const mesiToDate   = sortedUV.at(-1)?.valuation_date ?? new Date().toISOString().slice(0, 10);
         const perfMonth    = new Date(mesiToDate).toLocaleString('en-GB', { month: 'long' });
 
-        const [curYr, curMo, curDy] = body.currentDate.split('-').map(Number);
-        const curMonthShort = new Date(curYr, curMo - 1, curDy).toLocaleString('en-GB', { month: 'short' });
-        const indexMtdWindow = `1 – ${curDy} ${curMonthShort} ${curYr}`;
+        // body.currentDate is the en-GB long string "18 April 2026" from the
+        // client — not ISO. Use today directly for the MTD window.
+        const now = new Date();
+        const indexMtdWindow = `1 – ${now.getDate()} ${now.toLocaleString('en-GB', { month: 'short' })} ${now.getFullYear()}`;
 
         // Fetch all external data in parallel
         const tickers = body.positions.map(p => p.ticker);
