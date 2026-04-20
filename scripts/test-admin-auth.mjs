@@ -23,7 +23,9 @@ try {
   console.warn('Could not read .env.local — relying on process.env');
 }
 
-const TARGET = process.env.TARGET ?? 'http://localhost:3000';
+// Trim whitespace (Windows `set FOO=bar && cmd` captures the trailing space
+// into FOO) and strip trailing slashes so `${TARGET}${path}` can't produce //.
+const TARGET = (process.env.TARGET ?? 'http://localhost:3000').trim().replace(/\/+$/, '');
 const SECRET = env.MANAGE_API_SECRET ?? process.env.MANAGE_API_SECRET;
 
 if (!SECRET) {
@@ -64,7 +66,12 @@ async function hit(path, headers, label) {
 }
 
 function check(label, actual, expected) {
-  const ok = expected === 'not-401' ? actual !== 401 : actual === expected;
+  // A connection error (fetch failed / ECONNREFUSED) must never count as pass,
+  // even for the "not-401" case — it means the server isn't reachable.
+  const isConnError = typeof actual === 'string' && actual.startsWith('error:');
+  const ok = isConnError ? false
+    : expected === 'not-401' ? actual !== 401
+    : actual === expected;
   const mark = ok ? 'PASS' : 'FAIL';
   console.log(`  [${mark}] ${label}: got ${actual}, expected ${expected}`);
   ok ? pass++ : fail++;
