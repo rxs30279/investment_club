@@ -4,6 +4,7 @@
 // Follows the same patterns as lib/portfolio.ts.
 
 import { supabase } from './supabase';
+import { getAdminHeaders } from './admin-client';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export async function syncUnitValues(): Promise<{
   skipped: number;
   errors: { file_name: string; detail?: string }[];
 }> {
-  const res = await fetch('/api/performance/sync', { method: 'POST' });
+  const res = await fetch('/api/performance/sync', { method: 'POST', headers: getAdminHeaders() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Sync failed with status ${res.status}`);

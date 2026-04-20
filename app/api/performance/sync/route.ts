@@ -14,6 +14,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/admin-auth';
 // pdf-parse is CommonJS — require() is needed for Turbopack compatibility
 const pdfParse = require('pdf-parse-fork');
 
@@ -75,7 +76,9 @@ function extractFromText(text: string): {
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
-export async function POST() {
+export async function POST(req: Request) {
+  const unauthorized = requireAdmin(req);
+  if (unauthorized) return unauthorized;
   try {
     // 1. Load all treasurer reports from DB
     const { data: reports, error: reportsError } = await supabaseAdmin
@@ -216,25 +219,5 @@ export async function GET() {
       { error: err instanceof Error ? err.message : JSON.stringify(err) },
       { status: 500 }
     );
-  }
-}
-export async function PUT() {
-  try {
-    const { data: reports } = await supabaseAdmin
-      .from('treasurer_reports')
-      .select('file_name, file_url')
-      .eq('file_name', '20250630 june valuation.pdf')
-      .limit(1);
-
-    if (!reports || reports.length === 0)
-      return NextResponse.json({ error: 'No reports found' });
-
-    const report = reports[0];
-    const pdfBuffer = await downloadPdf(report.file_url);
-    const { text } = await pdfParse(pdfBuffer);
-
-    return NextResponse.json({ file_name: report.file_name, text });
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

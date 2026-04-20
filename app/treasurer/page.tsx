@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Navigation from '@/components/Navigation';
 import { supabase } from '@/lib/supabase';
+import { getAdminHeaders } from '@/lib/admin-client';
 
 interface TreasurerReport {
   id: number;
@@ -101,9 +102,10 @@ export default function TreasurerPage() {
     setSyncing(true);
     setSyncResult(null);
     try {
+      const adminHeaders = getAdminHeaders();
       const [perfRes, divsRes] = await Promise.all([
-        fetch('/api/performance/sync', { method: 'POST' }),
-        fetch('/api/performance/sync-dividends', { method: 'POST' }),
+        fetch('/api/performance/sync', { method: 'POST', headers: adminHeaders }),
+        fetch('/api/performance/sync-dividends', { method: 'POST', headers: adminHeaders }),
       ]);
       const [perf, divs] = await Promise.all([perfRes.json(), divsRes.json()]);
 

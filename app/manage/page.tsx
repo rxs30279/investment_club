@@ -15,6 +15,7 @@ import {
 } from '@/lib/portfolio';
 import { getUnitValues, fetchBenchmarkData } from '@/lib/performance';
 import { supabase } from '@/lib/supabase';
+import { getAdminHeaders } from '@/lib/admin-client';
 
 // Helper for formatting
 const formatCurrency = (value: number): string => {
@@ -406,7 +407,7 @@ function ManagePageContent() {
       setBriefStatus('generating');
       const res = await fetch('/api/monthly-brief', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAdminHeaders() },
         body: JSON.stringify({
           positions: pos, monthlyPerf, unitValues,
           ftse100: benchmarks.ftse100, ftse250: benchmarks.ftse250,

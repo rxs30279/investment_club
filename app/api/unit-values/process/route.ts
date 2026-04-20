@@ -1,28 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-export async function GET() {
-  try {
-    // Just return a message that PDF extraction is not implemented yet
-    return NextResponse.json({
-      success: true,
-      message: 'PDF extraction not implemented. Use manual entry instead.',
-      processed: 0,
-      errors: 0
-    });
-  } catch (error) {
-    console.error('Error processing unit values:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to process unit values',
-        details: String(error)
-      },
-      { status: 500 }
-    );
-  }
-}
-
 export async function POST(request: Request) {
   try {
     const { reportId, unitValue, totalAssets, totalUnits } = await request.json();

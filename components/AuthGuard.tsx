@@ -10,6 +10,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const auth = localStorage.getItem('global_auth');
     if (auth === 'true') {
+      if (!localStorage.getItem('admin_token')) {
+        localStorage.setItem('admin_token', SITE_PASSWORD);
+      }
       setIsAuthenticated(true);
     } else {
       setIsAuthenticated(false);
@@ -19,6 +22,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const handleLogin = (password: string) => {
     if (password === SITE_PASSWORD) {
       localStorage.setItem('global_auth', 'true');
+      localStorage.setItem('admin_token', password);
       setIsAuthenticated(true);
       return true;
     }

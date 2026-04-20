@@ -6,6 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/admin-auth';
 const pdfParse = require('pdf-parse-fork');
 
 const supabaseAdmin = createClient(
@@ -83,7 +84,9 @@ function matchHolding(
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
-export async function POST() {
+export async function POST(req: Request) {
+  const unauthorized = requireAdmin(req);
+  if (unauthorized) return unauthorized;
   try {
     const currentYear = new Date().getFullYear();
     const yearStart   = `${currentYear}-01-01`;
