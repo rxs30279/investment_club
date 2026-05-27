@@ -202,10 +202,17 @@ export default function PortfolioFeesPage() {
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden mb-6">
           <div className="flex justify-between items-center px-4 sm:px-6 py-4 border-b border-gray-800">
             <h2 className="text-white font-semibold">Dividend Income</h2>
-            <button onClick={() => setShowAddDividend(!showAddDividend)}
-              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs">
-              + Add Dividend
-            </button>
+            <div className="flex gap-2">
+              <button onClick={loadData}
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-xs"
+                title="Refresh — pick up dividends newly extracted from treasurer reports">
+                ⟳ Refresh
+              </button>
+              <button onClick={() => setShowAddDividend(!showAddDividend)}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs">
+                + Add Dividend
+              </button>
+            </div>
           </div>
 
           {showAddDividend && (

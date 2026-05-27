@@ -24,6 +24,27 @@ const formatDate = (dateString: string): string => {
   });
 };
 
+// Build a user-facing summary of a /api/performance/sync-dividends response,
+// surfacing up to 3 per-file error details so unmatched company names are visible.
+function formatDivSyncResult(divs: any): { ok: boolean; message: string } {
+  if (divs?.error) {
+    return { ok: false, message: `Dividends: Error — ${divs.error}` };
+  }
+  const errors: { file_name?: string; detail?: string }[] = divs?.errors ?? [];
+  if (errors.length === 0) {
+    return { ok: true, message: `Dividends: ${divs?.message ?? `${divs?.processed ?? 0} added`}` };
+  }
+  const details = errors
+    .slice(0, 3)
+    .map(e => e.detail ?? 'unknown')
+    .join('; ');
+  const more = errors.length > 3 ? ` (+${errors.length - 3} more)` : '';
+  return {
+    ok: false,
+    message: `Dividends: ${divs?.processed ?? 0} added, ${errors.length} issue(s) — ${details}${more}`,
+  };
+}
+
 
 // ── Main page content (public) ────────────────────────────────────────────────
 
@@ -114,14 +135,10 @@ export default function TreasurerPage() {
         : perf.errors?.length > 0
           ? `Performance: ${perf.processed} added, ${perf.errors.length} failed`
           : `Performance: ${perf.message}`;
-      const divsMsg = divs.error
-        ? `Dividends: Error — ${divs.error}`
-        : divs.errors?.length > 0
-          ? `Dividends: ${divs.processed} added, ${divs.errors.length} issue(s)`
-          : `Dividends: ${divs.message}`;
+      const divResult = formatDivSyncResult(divs);
 
-      const ok = !perf.error && !divs.error && !perf.errors?.length && !divs.errors?.length;
-      setSyncResult({ ok, message: `${perfMsg} · ${divsMsg}` });
+      const ok = !perf.error && !perf.errors?.length && divResult.ok;
+      setSyncResult({ ok, message: `${perfMsg} · ${divResult.message}` });
     } catch (err) {
       console.error('Sync error:', err);
       setSyncResult({ ok: false, message: 'Sync failed — check console' });
@@ -181,6 +198,23 @@ export default function TreasurerPage() {
       setNewReport({ title: '', date: new Date().toISOString().split('T')[0], content: '', file: null });
       if (fileInputRef.current) fileInputRef.current.value = '';
       loadReports();
+
+      // Auto-extract dividends from the freshly-uploaded PDF (single-report mode).
+      // Unit-value sync stays manual via the "⟳ Sync Performance" button.
+      if (fileUrl) {
+        try {
+          const divsRes = await fetch(
+            `/api/performance/sync-dividends?reportId=${reportId}`,
+            { method: 'POST', headers: getAdminHeaders() },
+          );
+          const divs = await divsRes.json();
+          setSyncResult(formatDivSyncResult(divs));
+        } catch (extractErr) {
+          console.error('Dividend extraction failed:', extractErr);
+          setSyncResult({ ok: false, message: 'Report uploaded, but dividend extraction failed — check console.' });
+        }
+      }
+
       alert('Treasurer report added successfully!');
     } catch (err) {
       console.error('Error adding report:', err);

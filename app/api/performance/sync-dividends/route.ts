@@ -88,20 +88,32 @@ export async function POST(req: Request) {
   const unauthorized = requireAdmin(req);
   if (unauthorized) return unauthorized;
   try {
-    const currentYear = new Date().getFullYear();
-    const yearStart   = `${currentYear}-01-01`;
+    const url = new URL(req.url);
+    const reportIdParam = url.searchParams.get('reportId');
+    const targetReportId = reportIdParam ? Number(reportIdParam) : null;
 
-    // 1. Fetch current-year treasurer reports
-    const { data: reports, error: reportsError } = await supabaseAdmin
+    // Targeted mode (post-upload auto-trigger): process exactly one report.
+    // Bulk mode (manual button): process all current-year reports.
+    let reportsQuery = supabaseAdmin
       .from('treasurer_reports')
       .select('id, file_name, file_url, date')
-      .gte('date', yearStart)
       .order('date', { ascending: true });
+
+    if (targetReportId !== null && Number.isFinite(targetReportId)) {
+      reportsQuery = reportsQuery.eq('id', targetReportId);
+    } else {
+      const yearStart = `${new Date().getFullYear()}-01-01`;
+      reportsQuery = reportsQuery.gte('date', yearStart);
+    }
+
+    const { data: reports, error: reportsError } = await reportsQuery;
 
     if (reportsError) throw reportsError;
     if (!reports?.length) {
       return NextResponse.json({
-        message: `No ${currentYear} reports found`,
+        message: targetReportId !== null
+          ? `Report ${targetReportId} not found`
+          : `No ${new Date().getFullYear()} reports found`,
         processed: 0, skipped: 0, errors: [],
       });
     }
@@ -114,11 +126,15 @@ export async function POST(req: Request) {
     if (holdingsError) throw holdingsError;
     const holdings = (holdingsData ?? []).map(h => ({ holdingId: h.id as number, name: h.name as string }));
 
-    // 3. Fetch existing current-year dividends to avoid duplicates
-    const { data: existingDivs } = await supabaseAdmin
-      .from('dividends')
-      .select('holding_id, date')
-      .gte('date', yearStart);
+    // 3. Fetch existing dividends to avoid duplicates. For bulk (current-year)
+    // mode we only need this year's rows; for single-report mode the PDF could
+    // be back-dated, so pull all dividends and let the (holding_id|date) key
+    // catch duplicates.
+    let existingQuery = supabaseAdmin.from('dividends').select('holding_id, date');
+    if (targetReportId === null) {
+      existingQuery = existingQuery.gte('date', `${new Date().getFullYear()}-01-01`);
+    }
+    const { data: existingDivs } = await existingQuery;
 
     const existingSet = new Set(
       (existingDivs ?? []).map(d => `${d.holding_id}|${d.date}`)
