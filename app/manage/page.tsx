@@ -11,7 +11,8 @@ import {
   fetchPrices,
   calculatePortfolioSummary,
   saveTransactions,
-  saveHolding
+  saveHolding,
+  deleteTransaction,
 } from '@/lib/portfolio';
 import { getUnitValues, fetchBenchmarkData } from '@/lib/performance';
 import { supabase } from '@/lib/supabase';
@@ -176,11 +177,16 @@ function ManagePageContent() {
     
     const updatedTransactions = [...transactions, transaction];
     const updatedHoldings = [...holdingsRef, newHolding];
-    
-    // Save to Supabase
+
+    // Save the holding first — if it fails we don't want an orphan transaction.
+    try {
+      await saveHolding(newHolding);
+    } catch (err) {
+      alert(`Failed to save new holding: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
     await saveTransactions(updatedTransactions);
-    await saveHolding(newHolding);
-    
+
     setTransactions(updatedTransactions);
     setHoldingsRef(updatedHoldings);
     setNextId(nextId + 1);
@@ -283,14 +289,20 @@ function ManagePageContent() {
       `This will recalculate your positions. This action cannot be undone.`;
     
     if (confirm(confirmMessage)) {
+      try {
+        await deleteTransaction(transactionId);
+      } catch (err) {
+        alert(`Failed to delete transaction: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+      }
+
       const updatedTransactions = transactions.filter(t => t.id !== transactionId);
-      await saveTransactions(updatedTransactions);
       setTransactions(updatedTransactions);
-      
+
       const prices = await fetchPrices();
       const calculatedPositions = await calculatePositions(updatedTransactions, prices);
       setPositions(calculatedPositions);
-      
+
       alert('Transaction deleted. Positions recalculated.');
     }
   };

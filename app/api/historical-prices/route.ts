@@ -1,17 +1,5 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-interface Holding {
-  id: number;
-  name: string;
-  ticker: string;
-  sector: string;
-}
-
-interface HoldingsData {
-  holdings: Holding[];
-}
+import { supabase } from '@/lib/supabase';
 
 // Fetches the closing price of each ticker on (or nearest trading day to) a given date.
 // Usage: GET /api/historical-prices?date=2026-01-02
@@ -35,11 +23,16 @@ export async function GET(request: Request) {
   const period2 = Math.floor(windowEnd.getTime() / 1000);
 
   try {
-    const holdingsPath = path.join(process.cwd(), 'app', 'data', 'holdings-reference.json');
-    const holdingsData = fs.readFileSync(holdingsPath, 'utf8');
-    const parsedData: HoldingsData = JSON.parse(holdingsData);
-    const holdings = parsedData.holdings || [];
-    const uniqueTickers = [...new Set(holdings.map((h) => h.ticker))];
+    const { data: holdings, error: holdingsErr } = await supabase
+      .from('holdings')
+      .select('ticker');
+
+    if (holdingsErr) {
+      console.error('Supabase error loading holdings for historical prices:', holdingsErr);
+      return NextResponse.json({ error: holdingsErr.message }, { status: 500 });
+    }
+
+    const uniqueTickers = [...new Set((holdings ?? []).map(h => h.ticker).filter(Boolean))] as string[];
 
     const targetTs = targetDate.getTime() / 1000;
 

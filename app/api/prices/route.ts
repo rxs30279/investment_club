@@ -1,30 +1,18 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-// Define the structure of holdings data
-interface Holding {
-  id: number;
-  name: string;
-  ticker: string;
-  sector: string;
-}
-
-interface HoldingsData {
-  holdings: Holding[];
-}
+import { supabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
-    // Read holdings from JSON file
-    const holdingsPath = path.join(process.cwd(), 'app', 'data', 'holdings-reference.json');
-    const holdingsData = fs.readFileSync(holdingsPath, 'utf8');
-    const parsedData: HoldingsData = JSON.parse(holdingsData);
-    const holdings = parsedData.holdings || [];
-    const tickers = holdings.map((h: Holding) => h.ticker);
-    
-    // Remove duplicates
-    const uniqueTickers = [...new Set(tickers)];
+    const { data: holdings, error } = await supabase
+      .from('holdings')
+      .select('ticker');
+
+    if (error) {
+      console.error('Supabase error loading holdings for prices:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const uniqueTickers = [...new Set((holdings ?? []).map(h => h.ticker).filter(Boolean))] as string[];
     
     const entries = await Promise.all(
       uniqueTickers.map(async (ticker) => {

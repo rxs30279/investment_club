@@ -40,8 +40,20 @@ export async function saveTransactions(transactions: Transaction[]): Promise<voi
         total_cost: tx.totalCost,
         commission: tx.commission,
       }, { onConflict: 'id' });
-    
+
     if (error) console.error('Error saving transaction:', error);
+  }
+}
+
+export async function deleteTransaction(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting transaction:', error);
+    throw new Error(`Failed to delete transaction ${id}: ${error.message}`);
   }
 }
 
@@ -101,15 +113,18 @@ export async function getHoldingsReference(): Promise<any[]> {
 
 export async function saveHolding(holding: any): Promise<void> {
   const { error } = await supabase
-    .from('holdings_view')
+    .from('holdings')
     .upsert({
       id: holding.id,
       name: holding.name,
       ticker: holding.ticker,
       sector: holding.sector,
     }, { onConflict: 'id' });
-  
-  if (error) console.error('Error saving holding:', error);
+
+  if (error) {
+    console.error('Error saving holding:', error);
+    throw new Error(`Failed to save holding ${holding.id}: ${error.message}`);
+  }
 }
 
 // ==================== PRICES ====================
