@@ -1,8 +1,20 @@
 // Diagnostic script: fetch Investegate RNS data for portfolio tickers
 // Run: node scripts/diagnose-rns.mjs
+//
+// Reads SUPABASE creds from .env.local — never hardcode keys here.
 
-const SUPABASE_URL = 'https://houiwkuqhpylupdbqogu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhvdWl3a3VxaHB5bHVwZGJxb2d1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYyMTY4MywiZXhwIjoyMDkwMTk3NjgzfQ.OUPt7IE2F_z-NfIYKIWluGbWBjuGq8Y4ox4pF6SU1Xw';
+import { readFileSync } from 'node:fs';
+const env = {};
+for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
+  const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+  if (m) env[m[1]] = m[2].replace(/^['"]|['"]$/g, '');
+}
+const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = env.SUPABASE_SERVICE_ROLE_KEY ?? env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or service/anon key in .env.local');
+  process.exit(1);
+}
 
 const YAHOO_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
