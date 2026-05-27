@@ -14,7 +14,7 @@ import {
   saveHolding,
   deleteTransaction,
 } from '@/lib/portfolio';
-import { getUnitValues, fetchBenchmarkData } from '@/lib/performance';
+import { getUnitValues } from '@/lib/performance';
 import { supabase } from '@/lib/supabase';
 import { getAdminHeaders } from '@/lib/admin-client';
 
@@ -404,17 +404,11 @@ function ManagePageContent() {
         ? articlesData.map((a: any) => `[${a.contributor_name}] "${a.title}"\n${a.body}`).join('\n\n---\n\n')
         : '';
 
-      const [mpRes, benchmarks] = await Promise.all([
-        fetch('/api/monthly-performance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tickers }),
-        }),
-        fetchBenchmarkData((() => {
-          const d = new Date(); d.setMonth(d.getMonth() - 3);
-          return d.toISOString().split('T')[0];
-        })()),
-      ]);
+      const mpRes = await fetch('/api/monthly-performance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tickers }),
+      });
       const monthlyPerf = mpRes.ok ? await mpRes.json() : {};
       setBriefStatus('generating');
       const res = await fetch('/api/monthly-brief', {
@@ -422,7 +416,6 @@ function ManagePageContent() {
         headers: { 'Content-Type': 'application/json', ...getAdminHeaders() },
         body: JSON.stringify({
           positions: pos, monthlyPerf, unitValues,
-          ftse100: benchmarks.ftse100, ftse250: benchmarks.ftse250,
           reportMonth: reportMonthLabel(), currentDate: currentDateLabel(),
           userArticles,
         }),

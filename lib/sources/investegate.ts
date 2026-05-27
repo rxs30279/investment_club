@@ -11,9 +11,13 @@ import type { InvestegateData, RnsItem } from '../monthly-brief/types';
 //
 // Summaries are then fetched in parallel for director + material hits.
 
-const TICKER_RE   = /\/announcement\/[a-z]+\/[^\/]+--([a-z0-9.]+)\/([^\/]+)\//i;
-const ANN_LINK_RE = /<a[^>]*class="announcement-link"[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
-const SUMMARY_RE  = /<div[^>]*id="collapseSummary"[^>]*>([\s\S]*?)<p[^>]*id="summary-disclaimer"/i;
+const TICKER_RE   = /\/announcement\/[a-z]+\/[^/]+--([a-z0-9.]+)\/([^/]+)\//i;
+// Match any <a> with class="announcement-link" regardless of attribute order.
+// Old regex was strict about class being the first attribute.
+const ANN_LINK_RE = /<a\b[^>]*?\bclass\s*=\s*["'][^"']*\bannouncement-link\b[^"']*["'][^>]*?\bhref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+const ANN_LINK_RE_HREF_FIRST = /<a\b[^>]*?\bhref\s*=\s*["']([^"']+)["'][^>]*?\bclass\s*=\s*["'][^"']*\bannouncement-link\b[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+// Summary block — accept either #collapseSummary id or a class containing 'summary'.
+const SUMMARY_RE  = /<div[^>]*\b(?:id\s*=\s*["']collapseSummary["']|class\s*=\s*["'][^"']*\bcollapse-summary\b[^"']*["'])[^>]*>([\s\S]*?)(?:<p[^>]*\bid\s*=\s*["']summary-disclaimer["']|<\/div>)/i;
 
 // Director/PDMR personal share purchases or sales
 const DIRECTOR_KW = [
@@ -21,8 +25,11 @@ const DIRECTOR_KW = [
   'director dealing', 'director purchase', 'director sale', 'pdmr dealing',
 ];
 
-// Material corporate events — always worth fetching the full AI summary
-const MATERIAL_KW: { kw: string; category: string }[] = [
+// Material corporate events — always worth fetching the full AI summary.
+// Categories tagged 'aggregate: true' get rolled up into one synthetic record
+// per ticker (e.g. 53 daily buyback executions → one row). Without that LLOY's
+// buyback programme would flood section 8 and crowd out everything else.
+const MATERIAL_KW: { kw: string; category: string; aggregate?: boolean }[] = [
   // Results
   { kw: 'preliminary results',    category: 'Results' },
   { kw: 'preliminary result',     category: 'Results' },
@@ -34,12 +41,28 @@ const MATERIAL_KW: { kw: string; category: string }[] = [
   { kw: 'interim results',        category: 'Results' },
   { kw: 'half year report',       category: 'Results' },
   { kw: 'annual report',          category: 'Results' },
+  { kw: 'q1 results',             category: 'Results' },
+  { kw: 'q2 results',             category: 'Results' },
+  { kw: 'q3 results',             category: 'Results' },
+  { kw: 'first quarter results',  category: 'Results' },
+  { kw: 'third quarter results',  category: 'Results' },
   // Guidance & warnings
   { kw: 'trading update',         category: 'Trading Update' },
   { kw: 'trading statement',      category: 'Trading Update' },
   { kw: 'profit warning',         category: 'Profit Warning' },
   { kw: 'revenue update',         category: 'Trading Update' },
   { kw: 'business update',        category: 'Trading Update' },
+  { kw: 'agm statement',          category: 'Trading Update' },
+  { kw: 'agm trading',            category: 'Trading Update' },
+  { kw: 'q1 update',              category: 'Trading Update' },
+  { kw: 'q2 update',              category: 'Trading Update' },
+  { kw: 'q3 update',              category: 'Trading Update' },
+  { kw: 'q4 update',              category: 'Trading Update' },
+  { kw: 'quarterly update',       category: 'Trading Update' },
+  { kw: 'operations update',      category: 'Trading Update' },
+  { kw: 'operational update',     category: 'Trading Update' },
+  { kw: 'production update',      category: 'Trading Update' },
+  { kw: 'reserves update',        category: 'Trading Update' },
   // Corporate actions
   { kw: 'acquisition',            category: 'Acquisition/Disposal' },
   { kw: 'disposal',               category: 'Acquisition/Disposal' },
@@ -47,11 +70,20 @@ const MATERIAL_KW: { kw: string; category: string }[] = [
   { kw: 'recommended offer',      category: 'Acquisition/Disposal' },
   { kw: 'recommended cash offer', category: 'Acquisition/Disposal' },
   { kw: 'firm offer',             category: 'Acquisition/Disposal' },
-  // Capital
+  // Capital — buyback executions are aggregated so 50 daily rows for one programme become one line
   { kw: 'placing',                category: 'Capital Raise' },
   { kw: 'rights issue',           category: 'Capital Raise' },
   { kw: 'capital raise',          category: 'Capital Raise' },
   { kw: 'share issuance',         category: 'Capital Raise' },
+  { kw: 'bond repurchase',        category: 'Capital Raise' },
+  { kw: 'senior unsecured',       category: 'Capital Raise' },
+  { kw: 'convertible bond',       category: 'Capital Raise' },
+  { kw: 'notes issue',            category: 'Capital Raise' },
+  { kw: 'share buyback',          category: 'Buyback' },
+  { kw: 'share repurchase',       category: 'Buyback' },
+  { kw: 'buyback programme',      category: 'Buyback' },
+  { kw: 'buy-back programme',     category: 'Buyback' },
+  { kw: 'transaction in own shares', category: 'Buyback', aggregate: true },
   // Dividends
   { kw: 'dividend declaration',   category: 'Dividend' },
   { kw: 'special dividend',       category: 'Dividend' },
@@ -72,6 +104,11 @@ const MATERIAL_KW: { kw: string; category: string }[] = [
   { kw: 'contract win',           category: 'Contract' },
   { kw: 'new contract',           category: 'Contract' },
   { kw: 'material contract',      category: 'Contract' },
+  { kw: 'joint venture',          category: 'Contract' },
+  // Shareholder changes — institutional stake moves crossing 3% threshold (aggregated)
+  { kw: 'holding(s) in company',  category: 'Shareholder Change', aggregate: true },
+  { kw: 'holdings in company',    category: 'Shareholder Change', aggregate: true },
+  { kw: 'major shareholding',     category: 'Shareholder Change', aggregate: true },
   // Index changes (FTSE inclusions/exclusions are price-moving)
   { kw: 'index change',           category: 'Index Change' },
   { kw: 'ftse russell',           category: 'Index Change' },
@@ -82,6 +119,10 @@ const MATERIAL_KW: { kw: string; category: string }[] = [
   { kw: 'court judgment',         category: 'Regulatory' },
   { kw: 'material litigation',    category: 'Regulatory' },
 ];
+
+const AGGREGATE_CATEGORIES = new Set(
+  MATERIAL_KW.filter(k => k.aggregate).map(k => k.category)
+);
 
 function classifyHeadline(headline: string): 'director' | 'material' | 'routine' {
   const h = headline.toLowerCase();
@@ -153,8 +194,25 @@ async function fetchAnnouncementSummary(url: string): Promise<string | null> {
     const html = await res.text();
     const m = SUMMARY_RE.exec(html);
     if (!m) return null;
-    return m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    return m[1].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
   } catch { return null; }
+}
+
+function extractAnnouncementLinks(html: string): { url: string; headline: string }[] {
+  const seen = new Set<string>();
+  const out: { url: string; headline: string }[] = [];
+  for (const re of [ANN_LINK_RE, ANN_LINK_RE_HREF_FIRST]) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const url = m[1];
+      if (seen.has(url)) continue;
+      seen.add(url);
+      const headline = m[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      if (headline) out.push({ url, headline });
+    }
+  }
+  return out;
 }
 
 export async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateData> {
@@ -171,8 +229,8 @@ export async function fetchAllInvestegateData(tickers: string[]): Promise<Invest
   const pages = await fetchDailyPages(dates);
   console.log(`[investegate] Fetched ${pages.length}/${dates.length} daily pages. Tickers: ${[...tickerSet].join(',')}`);
   if (pages.length > 0) {
-    const sampleLinks = (pages[0].html.match(ANN_LINK_RE) ?? []).slice(0, 3);
-    console.log('[investegate] Sample announcement links from first page:', sampleLinks);
+    const sample = extractAnnouncementLinks(pages[0].html).slice(0, 3);
+    console.log('[investegate] Sample announcement links from first page:', sample);
   }
 
   const allHits:      RnsItem[] = [];
@@ -180,12 +238,8 @@ export async function fetchAllInvestegateData(tickers: string[]): Promise<Invest
   const materialHits: (RnsItem & { category: string })[] = [];
 
   for (const { date, html } of pages) {
-    let m: RegExpExecArray | null;
-    ANN_LINK_RE.lastIndex = 0;
-    while ((m = ANN_LINK_RE.exec(html)) !== null) {
-      const rawUrl   = m[1];
+    for (const { url: rawUrl, headline } of extractAnnouncementLinks(html)) {
       const url      = rawUrl.startsWith('http') ? rawUrl : `https://www.investegate.co.uk${rawUrl}`;
-      const headline = m[2].trim();
       const tickerM  = TICKER_RE.exec(url);
       if (!tickerM) continue;
       const ticker = tickerM[1].toUpperCase();
@@ -200,7 +254,35 @@ export async function fetchAllInvestegateData(tickers: string[]): Promise<Invest
     }
   }
 
-  console.log(`[investegate] allHits: ${allHits.length}, director: ${directorHits.length}, material: ${materialHits.length}`);
+  // Aggregate noisy repeating categories (per-day buyback executions, recurring
+  // shareholder-stake updates) into one synthetic record per ticker+category.
+  // Without this an active buyback programme can flood section 8 with 50+ rows.
+  type CategoryItem = RnsItem & { category: string; synthetic?: boolean };
+  const individual: CategoryItem[] = [];
+  const groupBuffer: Record<string, CategoryItem[]> = {};
+  for (const item of materialHits) {
+    if (AGGREGATE_CATEGORIES.has(item.category)) {
+      (groupBuffer[`${item.ticker}|${item.category}`] ??= []).push(item);
+    } else {
+      individual.push(item);
+    }
+  }
+  const aggregated: CategoryItem[] = Object.entries(groupBuffer).map(([key, items]) => {
+    const [ticker, category] = key.split('|');
+    const sorted = items.sort((a, b) => b.date.localeCompare(a.date));
+    return {
+      date:      sorted[0].date,
+      ticker,
+      headline:  `${items.length} × ${category} announcements (${sorted[sorted.length - 1].date} to ${sorted[0].date})`,
+      url:       sorted[0].url,
+      category,
+      synthetic: true,
+    };
+  });
+  const materialForSummary = [...individual, ...aggregated]
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  console.log(`[investegate] allHits: ${allHits.length}, director: ${directorHits.length}, material raw: ${materialHits.length}, after aggregate: ${materialForSummary.length}`);
   if (allHits.length > 0) console.log('[investegate] First hit:', JSON.stringify(allHits[0]));
 
   const [directorSummaries, materialSummaries] = await Promise.all([
@@ -209,24 +291,28 @@ export async function fetchAllInvestegateData(tickers: string[]): Promise<Invest
         fetchAnnouncementSummary(item.url).then(s => ({ ...item, summary: s }))
       )
     ),
+    // Synthetic aggregated rows get no per-item summary — there's no single
+    // Investegate summary that covers e.g. 53 daily buyback filings.
     Promise.allSettled(
-      materialHits.slice(0, 20).map(item =>
-        fetchAnnouncementSummary(item.url).then(s => ({ ...item, summary: s }))
-      )
+      materialForSummary.slice(0, 40).map(async item => ({
+        ...item,
+        summary: item.synthetic ? null : await fetchAnnouncementSummary(item.url),
+      }))
     ),
   ]);
 
-  const rnsLines: string[] = ['=== Investegate RNS index (last 60 trading days, portfolio holdings) ===\n'];
+  // RNS index is reference-only context for the model — summary form is enough.
+  // One line per ticker keeps it tiny so the dropdown bloat doesn't eat the
+  // prompt budget.
+  const rnsLines: string[] = ['=== Investegate RNS index summary (last 60 trading days, portfolio holdings — counts only; see MATERIAL RNS for the substantive announcements) ===\n'];
   if (allHits.length === 0) {
     rnsLines.push('[No announcements found for portfolio tickers in this period]');
   } else {
-    allHits.sort((a, b) => b.date.localeCompare(a.date));
     const byTicker: Record<string, RnsItem[]> = {};
     for (const h of allHits) (byTicker[h.ticker] ??= []).push(h);
     for (const [ticker, items] of Object.entries(byTicker).sort()) {
-      rnsLines.push(`${ticker} (${items.length}):`);
-      for (const item of items) rnsLines.push(`  ${item.date}  ${item.headline}`);
-      rnsLines.push('');
+      const last = [...items].sort((a, b) => b.date.localeCompare(a.date))[0];
+      rnsLines.push(`${ticker}: ${items.length} announcements (most recent ${last.date} — "${last.headline.slice(0, 80)}")`);
     }
   }
 

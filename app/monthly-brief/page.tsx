@@ -52,13 +52,27 @@ function ReportFrame({ html }: { html: string }) {
     doc.open();
     doc.write(html);
     doc.close();
+
     const resize = () => {
       const body = iframe.contentDocument?.body;
       if (body) setHeight(body.scrollHeight + 40);
     };
-    const t1 = setTimeout(resize, 300);
-    const t2 = setTimeout(resize, 1000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+
+    // ResizeObserver keeps the iframe in sync with layout reflows (font load,
+    // table relayout, dropdowns expanding). The fallback timers cover the first
+    // paint window before the observer kicks in.
+    let observer: ResizeObserver | null = null;
+    const body = iframe.contentDocument?.body;
+    if (body && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(resize);
+      observer.observe(body);
+    }
+    const timers = [100, 500, 1500, 3000].map(ms => setTimeout(resize, ms));
+
+    return () => {
+      observer?.disconnect();
+      timers.forEach(clearTimeout);
+    };
   }, [html]);
 
   return (

@@ -3,27 +3,47 @@ import type { NewsItem, Position } from '../monthly-brief/types';
 // Searches Google News RSS for each portfolio company name. Google News
 // aggregates FT, Reuters, Bloomberg and others so it serves as the proxy
 // after Bloomberg shut down public RSS in 2019.
-// XML is parsed inline with regex — no rss-parser dependency needed.
+// XML is parsed with a small handwritten parser — no dependency required.
 
 const RSS_HEADERS = { 'User-Agent': 'Mozilla/5.0', Accept: 'application/rss+xml, text/xml' };
 
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g,  '<')
+    .replace(/&gt;/g,  '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+// Pulls the text content from a tag, transparently handling CDATA wrappers
+// and whitespace inside the opening tag. Used for <title>, <pubDate>, <source>.
+function extractTag(block: string, tag: string): string | null {
+  // Match <tag ...attrs?>(CDATA?)(content)</tag>
+  const re = new RegExp(`<${tag}\\b[^>]*>(?:\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*|([\\s\\S]*?))</${tag}>`, 'i');
+  const m = re.exec(block);
+  if (!m) return null;
+  const raw = m[1] ?? m[2] ?? '';
+  return decodeXmlEntities(raw).trim();
+}
+
 function parseRssItems(xml: string, fallbackSource: string): { title: string; source: string; date: string }[] {
   const out: { title: string; source: string; date: string }[] = [];
-  const blocks = xml.match(/<item>([\s\S]*?)<\/item>/g) ?? [];
+  const blocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) ?? [];
   for (const block of blocks.slice(0, 5)) {
-    const rawTitle = (
-      block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/)?.[1] ??
-      block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? ''
-    ).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+    const rawTitle = extractTag(block, 'title') ?? '';
+    if (!rawTitle) continue;
 
-    const raw = block.match(/<pubDate>(.*?)<\/pubDate>/)?.[1]?.trim() ?? '';
+    const raw = extractTag(block, 'pubDate') ?? '';
     let date = 'recent';
     try { if (raw) date = new Date(raw).toISOString().slice(0, 10); } catch { /* keep 'recent' */ }
 
     // Google News RSS embeds the source at the end of the title as " - Source Name".
     let title  = rawTitle;
     let source = fallbackSource;
-    const xmlSource = block.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.trim();
+    const xmlSource = extractTag(block, 'source');
     if (xmlSource) {
       source = xmlSource;
     } else {
@@ -80,7 +100,7 @@ async function fetchCompanyNews(companyName: string): Promise<NewsItem[]> {
   return [...priority, ...middle, ...demoted].slice(0, 5);
 }
 
-export async function fetchPortfolioNews(positions: Position[]): Promise<string> {
+export async function fetchPortfolioNews(positions: Position[], maxPerHolding = 5): Promise<string> {
   if (positions.length === 0) return '[No portfolio news — no positions]';
 
   // Batch in groups of 3 to be polite to Google News
@@ -95,13 +115,16 @@ export async function fetchPortfolioNews(positions: Position[]): Promise<string>
   if (all.length === 0)
     return '[No press news found — RSS feeds returned no results or were unavailable]';
 
+  // Cap at the per-company level so a holding's block never gets clipped mid-row
+  // by a downstream character cap.
   const byCompany: Record<string, NewsItem[]> = {};
   for (const item of all) (byCompany[item.company] ??= []).push(item);
 
-  const lines: string[] = ['=== Press Coverage (Google News RSS + FT RSS, portfolio companies) ===\n'];
+  const lines: string[] = ['=== Press Coverage (Google News RSS, portfolio companies) ===\n'];
   for (const [company, news] of Object.entries(byCompany)) {
-    lines.push(`${company.toUpperCase()} (${news.length}):`);
-    for (const n of news) lines.push(`  ${n.date} | ${n.source} | ${n.title}`);
+    const slice = news.slice(0, maxPerHolding);
+    lines.push(`${company.toUpperCase()} (${slice.length}):`);
+    for (const n of slice) lines.push(`  ${n.date} | ${n.source} | ${n.title}`);
     lines.push('');
   }
   return lines.join('\n');

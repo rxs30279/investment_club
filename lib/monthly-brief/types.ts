@@ -7,14 +7,11 @@ export interface Position {
 
 export interface MonthlyPerfEntry { monthStart: number; current: number; changePercent: number; }
 export interface UnitValue      { valuation_date: string; unit_value: number; }
-export interface BenchmarkPoint { date: string; value: number; }
 
 export interface RequestBody {
   positions:    Position[];
   monthlyPerf:  Record<string, MonthlyPerfEntry>;
   unitValues:   UnitValue[];
-  ftse100:      BenchmarkPoint[];
-  ftse250:      BenchmarkPoint[];
   reportMonth:  string;
   currentDate:  string;
   userArticles?: string;
@@ -32,13 +29,23 @@ export interface BoeMacro {
 export interface DividendEvent { date: string; amount: number; }
 export interface DividendRow   { ticker: string; name: string; divs: DividendEvent[]; }
 
-export interface FtseAligned {
-  ftse100From:    number | null;
-  ftse100To:      number | null;
-  ftse250From:    number | null;
-  ftse250To:      number | null;
-  fromDate:       string;
-  toDate:         string;
+// All FTSE figures derived from one Yahoo call per index, covering the YTD
+// window so current price, YTD %, and the MESI-aligned monthly window are
+// all extracted from the same series.
+export interface FtseSeries {
+  current:        number | null;
+  ytdPct:         number | null;
+  ytdFromDate:    string;
+  ytdToDate:      string;
+  alignedFromVal: number | null;
+  alignedToVal:   number | null;
+  alignedFromDate: string;
+  alignedToDate:   string;
+}
+
+export interface FtseAll {
+  ftse100: FtseSeries;
+  ftse250: FtseSeries;
 }
 
 export interface RnsItem { date: string; ticker: string; headline: string; url: string; }
@@ -72,6 +79,4 @@ export interface MacroData {
   gbpEur: number | null;
   brent:  number | null;
   gold:   number | null;
-  ftse100: number | null;
-  ftse250: number | null;
 }

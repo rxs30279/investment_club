@@ -1,4 +1,4 @@
-import type { DividendEvent, DividendRow, FtseAligned, MacroData, Position } from '../monthly-brief/types';
+import type { DividendEvent, DividendRow, FtseAll, FtseSeries, MacroData, Position } from '../monthly-brief/types';
 
 const YAHOO_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -54,18 +54,18 @@ export async function fetchDividendRows(positions: Position[]): Promise<Dividend
   return results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
 }
 
-// Payment dates are deliberately omitted — dividenddata.co.uk serves an empty
-// HTML shell to Vercel's data-center IPs, so we can't source them reliably
-// from a serverless environment.
-export function formatDividendData(rows: DividendRow[]): string {
+// Holdings ordered by current value, dropping the long tail so per-holding
+// rows don't get clipped mid-line by a downstream character cap.
+export function formatDividendData(rows: DividendRow[], maxHoldings = 30): string {
   const lines: string[] = [
     '=== Dividend history (ex-div dates + amounts from Yahoo Finance — last 12 months per holding) ===\n',
     'Ticker     | Company                        | Ex-Div Date | Amount (p)',
     '-----------|--------------------------------|-------------|------------',
   ];
 
+  const slice = rows.slice(0, maxHoldings);
   let anyData = false;
-  for (const { ticker, name, divs } of rows) {
+  for (const { ticker, name, divs } of slice) {
     if (divs.length === 0) {
       lines.push(`${ticker.padEnd(10)} | ${name.substring(0, 30).padEnd(30)} | No dividend data found`);
       continue;
@@ -77,73 +77,102 @@ export function formatDividendData(rows: DividendRow[]): string {
       );
     }
   }
+  if (rows.length > slice.length) {
+    lines.push(`\n[${rows.length - slice.length} smaller holdings omitted for length]`);
+  }
 
   if (!anyData) return '[Dividend data unavailable — use your knowledge for dividend dates and yields]';
   return lines.join('\n');
 }
 
+// One fetch per index covers current price, YTD %, and the MESI-aligned monthly
+// window. Used to be three separate calls per index. Range covers from the
+// earlier of (current year start, alignedFromDate) so we can extract any value
+// needed from one response.
+async function fetchFtseSeries(
+  ticker: string,
+  alignedFromDate: string,
+  alignedToDate: string,
+): Promise<FtseSeries> {
+  const yearStart = new Date(new Date().getFullYear(), 0, 1);
+  const fromTs    = Math.min(yearStart.getTime(), new Date(alignedFromDate).getTime()) - 86400_000 * 5;
+  const toTs      = Math.max(Date.now(), new Date(alignedToDate).getTime())               + 86400_000 * 2;
+  const period1   = Math.floor(fromTs / 1000);
+  const period2   = Math.floor(toTs   / 1000);
+
+  const ytdFromDate = yearStart.toISOString().slice(0, 10);
+  const ytdToDate   = new Date().toISOString().slice(0, 10);
+
+  const empty: FtseSeries = {
+    current: null, ytdPct: null, ytdFromDate, ytdToDate,
+    alignedFromVal: null, alignedToVal: null,
+    alignedFromDate, alignedToDate,
+  };
+
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${period1}&period2=${period2}`,
+      { signal: AbortSignal.timeout(8000), headers: YAHOO_HEADERS }
+    );
+    if (!res.ok) return empty;
+    const json   = await res.json();
+    const result = json?.chart?.result?.[0];
+    const tsArr     = result?.timestamp as number[] | undefined;
+    const closesArr = result?.indicators?.quote?.[0]?.close as (number | null)[] | undefined;
+    if (!tsArr || !closesArr || tsArr.length === 0) return empty;
+    const ts: number[]          = tsArr;
+    const closes: (number | null)[] = closesArr;
+
+    function closeNear(targetIso: string, direction: 'forward' | 'backward'): number | null {
+      const target = new Date(targetIso).getTime() / 1000;
+      if (direction === 'forward') {
+        // First close at or after target
+        for (let i = 0; i < ts.length; i++) {
+          if (ts[i] >= target && closes[i] != null) return closes[i]!;
+        }
+      } else {
+        // Last close at or before target
+        for (let i = ts.length - 1; i >= 0; i--) {
+          if (ts[i] <= target && closes[i] != null) return closes[i]!;
+        }
+      }
+      return null;
+    }
+
+    const current        = [...closes].reverse().find(c => c != null) ?? null;
+    const ytdFromClose   = closeNear(ytdFromDate, 'forward');
+    const ytdToClose     = closeNear(ytdToDate,   'backward');
+    const alignedFromVal = closeNear(alignedFromDate, 'backward');
+    const alignedToVal   = closeNear(alignedToDate,   'backward');
+
+    const ytdPct = ytdFromClose != null && ytdToClose != null
+      ? parseFloat(((ytdToClose - ytdFromClose) / ytdFromClose * 100).toFixed(2))
+      : null;
+
+    return {
+      current, ytdPct, ytdFromDate, ytdToDate,
+      alignedFromVal, alignedToVal,
+      alignedFromDate, alignedToDate,
+    };
+  } catch { return empty; }
+}
+
+export async function fetchFtseAll(alignedFromDate: string, alignedToDate: string): Promise<FtseAll> {
+  const [ftse100, ftse250] = await Promise.all([
+    fetchFtseSeries('^FTSE', alignedFromDate, alignedToDate),
+    fetchFtseSeries('^FTMC', alignedFromDate, alignedToDate),
+  ]);
+  return { ftse100, ftse250 };
+}
+
+// Macro now only fetches non-FTSE prices — FTSE values come from fetchFtseAll
+// which is computed once from the YTD series.
 export async function fetchMacroData(): Promise<MacroData> {
-  const [gbpUsd, gbpEur, brent, gold, ftse100, ftse250] = await Promise.all([
+  const [gbpUsd, gbpEur, brent, gold] = await Promise.all([
     fetchYahooPrice('GBPUSD=X'),
     fetchYahooPrice('GBPEUR=X'),
     fetchYahooPrice('BZ=F'),
     fetchYahooPrice('GC=F'),
-    fetchYahooPrice('^FTSE'),
-    fetchYahooPrice('^FTMC'),
   ]);
-  return { gbpUsd, gbpEur, brent, gold, ftse100, ftse250 };
-}
-
-// Fetches a small daily window around the target date and returns the last
-// valid close — this handles weekends/holidays where the exact date has no data.
-async function fetchFtseOnDate(ticker: string, targetDate: string): Promise<number | null> {
-  const date    = new Date(targetDate);
-  const period1 = Math.floor(date.getTime() / 1000) - 86400 * 5;
-  const period2 = Math.floor(date.getTime() / 1000) + 86400 * 2;
-  try {
-    const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${period1}&period2=${period2}`,
-      { signal: AbortSignal.timeout(7000), headers: YAHOO_HEADERS }
-    );
-    if (!res.ok) return null;
-    const json = await res.json();
-    const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close as (number | null)[] | undefined;
-    if (!closes) return null;
-    return [...closes].reverse().find(v => v != null) ?? null;
-  } catch { return null; }
-}
-
-export async function fetchFtseAligned(fromDate: string, toDate: string): Promise<FtseAligned> {
-  const [ftse100From, ftse100To, ftse250From, ftse250To] = await Promise.all([
-    fetchFtseOnDate('^FTSE', fromDate),
-    fetchFtseOnDate('^FTSE', toDate),
-    fetchFtseOnDate('^FTMC', fromDate),
-    fetchFtseOnDate('^FTMC', toDate),
-  ]);
-  return { ftse100From, ftse100To, ftse250From, ftse250To, fromDate, toDate };
-}
-
-export async function fetchFtseYtd(): Promise<{ ftse100Ytd: number | null; ftse250Ytd: number | null }> {
-  const period1 = Math.floor(new Date(new Date().getFullYear(), 0, 1).getTime() / 1000);
-  const period2 = Math.floor(Date.now() / 1000);
-
-  async function getYtd(ticker: string): Promise<number | null> {
-    try {
-      const res = await fetch(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&period1=${period1}&period2=${period2}`,
-        { signal: AbortSignal.timeout(7000), headers: YAHOO_HEADERS }
-      );
-      if (!res.ok) return null;
-      const json = await res.json();
-      const closes = json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close as (number | null)[] | undefined;
-      if (!closes || closes.length < 2) return null;
-      const first = closes.find(v => v != null);
-      const last  = [...closes].reverse().find(v => v != null);
-      if (first == null || last == null) return null;
-      return parseFloat(((last - first) / first * 100).toFixed(2));
-    } catch { return null; }
-  }
-
-  const [ftse100Ytd, ftse250Ytd] = await Promise.all([getYtd('^FTSE'), getYtd('^FTMC')]);
-  return { ftse100Ytd, ftse250Ytd };
+  return { gbpUsd, gbpEur, brent, gold };
 }

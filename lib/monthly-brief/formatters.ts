@@ -1,12 +1,34 @@
-import type { BoeMacro, FtseAligned, MacroData, MonthlyPerfEntry, Position, UnitValue } from './types';
+import type { IndexGroup, MetaLookup } from './holdings-meta';
+import type {
+  BoeMacro, DividendRow, FtseAll, MacroData,
+  MonthlyPerfEntry, Position, UnitValue,
+} from './types';
+
+// Trailing 12-month dividend yield from the dividend data we already fetch.
+// Unit gotcha: Yahoo returns dividend amounts in PENCE for UK tickers (e.g. 2.43
+// for a 2.43p dividend), but Position.currentPrice is in POUNDS because
+// /api/prices divides Yahoo's pence price by 100. Without converting to the
+// same unit the yield comes out 100× too large.
+function trailingYieldPct(ticker: string, currentPriceGbp: number, divs: DividendRow[]): number | null {
+  if (!currentPriceGbp) return null;
+  const row = divs.find(d => d.ticker === ticker);
+  if (!row || row.divs.length === 0) return null;
+  const annualPence  = row.divs.reduce((s, d) => s + d.amount, 0);
+  const annualPounds = annualPence / 100;
+  return parseFloat((annualPounds / currentPriceGbp * 100).toFixed(2));
+}
 
 export function buildPortfolioJSON(
-  positions: Position[],
-  monthlyPerf: Record<string, MonthlyPerfEntry>
+  positions:   Position[],
+  monthlyPerf: Record<string, MonthlyPerfEntry>,
+  dividends:   DividendRow[],
+  lookupMeta:  MetaLookup,
 ): string {
   const totalValue = positions.reduce((s, p) => s + p.currentValue, 0);
   const items = positions.map(p => {
-    const mp = monthlyPerf[p.ticker];
+    const mp    = monthlyPerf[p.ticker];
+    const meta  = lookupMeta(p.ticker);
+    const yld   = trailingYieldPct(p.ticker, p.currentPrice, dividends);
     return {
       company:                p.name,
       ticker:                 p.ticker,
@@ -15,16 +37,81 @@ export function buildPortfolioJSON(
       purchase_price:         parseFloat(p.avgCost.toFixed(4)),
       current_price:          parseFloat(p.currentPrice.toFixed(4)),
       month_start_price:      mp ? parseFloat(mp.monthStart.toFixed(4)) : null,
-      index_membership:       '[determine from your knowledge — FTSE100 / FTSE250 / AIM]',
-      revenue_geographic_mix: '[determine from your knowledge — Global / Domestic / Mixed]',
-      dividend_yield:         '[determine from your knowledge]',
-      market_cap_millions:    '[determine from your knowledge]',
+      index_membership:       meta.index,
+      revenue_geographic_mix: meta.revenueMix ?? '[approximate from your knowledge]',
+      dividend_yield_pct:     yld ?? '[no dividend data — approximate from your knowledge]',
+      market_cap_millions:    '[approximate from your knowledge]',
       monthly_change_pct:     mp ? parseFloat(mp.changePercent.toFixed(2)) : null,
       unrealised_pnl_pct:     parseFloat(p.pnlPercent.toFixed(2)),
       current_value_gbp:      parseFloat(p.currentValue.toFixed(2)),
     };
   });
   return JSON.stringify(items, null, 2);
+}
+
+export interface IndexBreakdownGroup {
+  index:        IndexGroup;
+  holdingCount: number;
+  weighting:    number;     // sum of weightings %
+  avgMonthly:   number | null;
+  tickers:      string[];
+  companies:    string[];
+}
+
+// Aggregate per-stock monthly moves into FTSE100 / FTSE250 / AIM / Other groups
+// so DeepSeek doesn't have to do the arithmetic. Weighting is by current value
+// (apples-to-apples with portfolio weighting); monthly is a simple value-weighted
+// average within the group.
+export function buildIndexBreakdown(
+  positions:   Position[],
+  monthlyPerf: Record<string, MonthlyPerfEntry>,
+  lookupMeta:  MetaLookup,
+): IndexBreakdownGroup[] {
+  const totalValue = positions.reduce((s, p) => s + p.currentValue, 0);
+  const groups: Record<IndexGroup, {
+    holdings: { ticker: string; company: string; value: number; monthly: number | null }[];
+  }> = {
+    FTSE100: { holdings: [] },
+    FTSE250: { holdings: [] },
+    AIM:     { holdings: [] },
+    Other:   { holdings: [] },
+  };
+
+  for (const p of positions) {
+    const idx = lookupMeta(p.ticker).index;
+    const mp  = monthlyPerf[p.ticker];
+    groups[idx].holdings.push({
+      ticker:  p.ticker,
+      company: p.name,
+      value:   p.currentValue,
+      monthly: mp ? mp.changePercent : null,
+    });
+  }
+
+  return (Object.keys(groups) as IndexGroup[]).map(index => {
+    const hs = groups[index].holdings;
+    const groupValue = hs.reduce((s, h) => s + h.value, 0);
+    const withMonthly = hs.filter(h => h.monthly !== null) as typeof hs;
+    const avgMonthly = withMonthly.length === 0 || groupValue === 0
+      ? null
+      : parseFloat(
+          (withMonthly.reduce((s, h) => s + (h.monthly! * h.value), 0) /
+            withMonthly.reduce((s, h) => s + h.value, 0)
+          ).toFixed(2)
+        );
+    return {
+      index,
+      holdingCount: hs.length,
+      weighting:    totalValue > 0 ? parseFloat((groupValue / totalValue * 100).toFixed(2)) : 0,
+      avgMonthly,
+      tickers:      hs.map(h => h.ticker),
+      companies:    hs.map(h => h.company),
+    };
+  }).filter(g => g.holdingCount > 0);
+}
+
+export function buildIndexBreakdownJSON(groups: IndexBreakdownGroup[]): string {
+  return JSON.stringify(groups, null, 2);
 }
 
 export function buildUnitValueStats(unitValues: UnitValue[]): string {
@@ -71,35 +158,28 @@ export function buildUnitValueStats(unitValues: UnitValue[]): string {
 export function buildMacroJSON(
   macro:       MacroData,
   boe:         BoeMacro,
-  ftseYtd:     { ftse100Ytd: number | null; ftse250Ytd: number | null },
-  ftseAligned: FtseAligned,
-  reportMonth: string
+  ftse:        FtseAll,
+  reportMonth: string,
 ): string {
-  const ftse100Monthly = ftseAligned.ftse100From && ftseAligned.ftse100To
-    ? ((ftseAligned.ftse100To - ftseAligned.ftse100From) / ftseAligned.ftse100From * 100).toFixed(2)
-    : null;
-  const ftse250Monthly = ftseAligned.ftse250From && ftseAligned.ftse250To
-    ? ((ftseAligned.ftse250To - ftseAligned.ftse250From) / ftseAligned.ftse250From * 100).toFixed(2)
-    : null;
+  function pctLabel(from: number | null, to: number | null, window: string): string {
+    if (from == null || to == null) return '[DATA NEEDED — use your knowledge]';
+    return `${((to - from) / from * 100).toFixed(2)}% (${window})`;
+  }
 
-  const alignedWindow = `${ftseAligned.fromDate} to ${ftseAligned.toDate} — same window as MESI monthly return`;
+  const aligned100 = pctLabel(
+    ftse.ftse100.alignedFromVal, ftse.ftse100.alignedToVal,
+    `${ftse.ftse100.alignedFromDate} to ${ftse.ftse100.alignedToDate} — same window as MESI monthly return`,
+  );
+  const aligned250 = pctLabel(
+    ftse.ftse250.alignedFromVal, ftse.ftse250.alignedToVal,
+    `${ftse.ftse250.alignedFromDate} to ${ftse.ftse250.alignedToDate} — same window as MESI monthly return`,
+  );
 
-  const ftse100MonthlyLabel = ftse100Monthly !== null
-    ? `${ftse100Monthly}% (${alignedWindow})`
+  const ytd100Label = ftse.ftse100.ytdPct !== null
+    ? `${ftse.ftse100.ytdPct}% (${ftse.ftse100.ytdFromDate} to ${ftse.ftse100.ytdToDate}, Yahoo Finance daily closes)`
     : '[DATA NEEDED — use your knowledge]';
-  const ftse250MonthlyLabel = ftse250Monthly !== null
-    ? `${ftse250Monthly}% (${alignedWindow})`
-    : '[DATA NEEDED — use your knowledge]';
-
-  const ytdFromDate = `${new Date().getFullYear()}-01-01`;
-  const ytdToDate   = new Date().toISOString().slice(0, 10);
-
-  const ftse100YtdLabel = ftseYtd.ftse100Ytd !== null
-    ? `${ftseYtd.ftse100Ytd}% (${ytdFromDate} to ${ytdToDate}, Yahoo Finance daily closes)`
-    : '[DATA NEEDED — use your knowledge]';
-
-  const ftse250YtdLabel = ftseYtd.ftse250Ytd !== null
-    ? `${ftseYtd.ftse250Ytd}% (${ytdFromDate} to ${ytdToDate}, Yahoo Finance daily closes)`
+  const ytd250Label = ftse.ftse250.ytdPct !== null
+    ? `${ftse.ftse250.ytdPct}% (${ftse.ftse250.ytdFromDate} to ${ftse.ftse250.ytdToDate}, Yahoo Finance daily closes)`
     : '[DATA NEEDED — use your knowledge]';
 
   const cpiLabel = boe.ukCpi !== null
@@ -116,12 +196,12 @@ export function buildMacroJSON(
     gbp_eur:                         macro.gbpEur  ?? '[DATA NEEDED]',
     oil_price_brent:                 macro.brent   ?? '[DATA NEEDED]',
     gold_price_usd:                  macro.gold    ?? '[DATA NEEDED]',
-    ftse100_current:                 macro.ftse100 ?? '[DATA NEEDED]',
-    ftse250_current:                 macro.ftse250 ?? '[DATA NEEDED]',
-    ftse100_monthly_return_pct:      ftse100MonthlyLabel,
-    ftse250_monthly_return_pct:      ftse250MonthlyLabel,
-    ftse100_ytd_return_pct:          ftse100YtdLabel,
-    ftse250_ytd_return_pct:          ftse250YtdLabel,
+    ftse100_current:                 ftse.ftse100.current ?? '[DATA NEEDED]',
+    ftse250_current:                 ftse.ftse250.current ?? '[DATA NEEDED]',
+    ftse100_monthly_return_pct:      aligned100,
+    ftse250_monthly_return_pct:      aligned250,
+    ftse100_ytd_return_pct:          ytd100Label,
+    ftse250_ytd_return_pct:          ytd250Label,
     bank_of_england_base_rate:       boe.bankRate        ?? '[DATA NEEDED]',
     gilt_yield_10yr:                 boe.giltYield10yr   ?? '[DATA NEEDED]',
     uk_cpi_latest:                   cpiLabel,
