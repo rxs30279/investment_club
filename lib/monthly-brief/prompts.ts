@@ -132,7 +132,7 @@ export function buildPart2bMessage(
     'Under the Month column header render a <div style="font-size:11px;color:#6b7280;font-weight:normal;margin-top:2px"> showing the date window from FUND PERFORMANCE. ' +
     'MESI row uses monthly_return_pct and ytd_return_pct from FUND PERFORMANCE. FTSE rows use MACRO figures.\n\n' +
     'B) AMBER NOTICE — immediately after the table render: <div class="notice-amber">One sentence on the unit-value lag. One sentence pointing to the Holdings page.</div>\n\n' +
-    'C) INDEX BREAKDOWN — render <h3>Index Membership Breakdown</h3> then immediately below it render a <p style="font-size:12px;color:#6b7280;margin-bottom:16px"> containing the exact text "Month to date: ' + indexMtdWindow + '" so readers see the window these per-stock figures cover (sourced from PORTFOLIO monthly_change_pct, which is measured from the 1st of the current calendar month to today — NOT the fund-performance window used in the table above). Then one short intro sentence in a <p>.\n' +
+    'C) INDEX BREAKDOWN — render <h3>Index Membership Breakdown</h3> then immediately below it render a <p style="font-size:12px;color:#6b7280;margin-bottom:16px"> containing the exact text "Last 30 days: ' + indexMtdWindow + '" so readers see the window these per-stock figures cover (sourced from PORTFOLIO monthly_change_pct, which is measured over the trailing 30 days — NOT the fund-performance window used in the table above). Then one short intro sentence in a <p>.\n' +
     'Use the INDEX BREAKDOWN JSON below — values are pre-aggregated server-side. For each group render one card using EXACTLY this class structure:\n' +
     '<div class="index-card">\n' +
     '  <div class="index-card-header">\n' +
@@ -140,12 +140,12 @@ export function buildPart2bMessage(
     '    <span class="index-card-badge">4 holdings · 38.2% of portfolio</span>\n' +
     '  </div>\n' +
     '  <div class="index-card-pct pct-pos">+10.2%</div>\n' +
-    '  <div class="index-card-label">Avg. monthly change (value-weighted)</div>\n' +
+    '  <div class="index-card-label">Avg. 30-day change (value-weighted)</div>\n' +
     '  <div class="index-card-holdings">BAE Systems, Rolls-Royce, RELX, Lloyds</div>\n' +
     '  <div class="index-card-note">One sentence on what drove this group and any outliers.</div>\n' +
     '</div>\n' +
     'Use class "pct-pos" for positive avgMonthly, "pct-neg" for negative. Cards stacked vertically. Do not use a flex row. The numbers in the card MUST match the JSON (holdingCount, weighting, avgMonthly, companies) — your only job is the note sentence.\n\n' +
-    'D) DROPDOWN — <details> with stock-by-stock contribution table (Ticker | Company | Monthly Change | Contribution | Notes), sorted best to worst.';
+    'D) DROPDOWN — <details> with stock-by-stock contribution table (Ticker | Company | 30-Day Change | Contribution | Notes), sorted best to worst.';
 
   return (
     'Today is ' + currentDate + '. You are writing PART 2b of 6 of the MESI Investment Club Monthly Intelligence Briefing for ' + reportMonth + '.\n\n' +
@@ -175,7 +175,7 @@ export function buildPart3aMessage(
   const section6 =
     '6. SECTOR SCORECARD — Keep this SIMPLE: a single sector table and nothing else. ' +
     'Do NOT include a forward compass, an FTSE100 vs FTSE250 deep dive, a separate theme tracker table, or a bull/bear dropdown. ' +
-    'One short intro sentence, then ONE table with these columns: Sector | Our Holdings | Our Move (this month) | Outlook. ' +
+    'One short intro sentence, then ONE table with these columns: Sector | Our Holdings | Our Move (last 30 days) | Outlook. ' +
     'One row per sector the club holds, sorted by Our Move best to worst. ' +
     'Use a traffic-light emoji in the Our Move cell (🟢 up / 🟡 flat / 🔴 down). ' +
     'The Outlook cell is a single short phrase (e.g. "Positive", "Watch", "Cautious") plus at most a half-sentence why. ' +

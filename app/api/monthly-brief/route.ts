@@ -136,10 +136,11 @@ export async function POST(request: NextRequest) {
         const mesiToDate   = sortedUV.at(-1)?.valuation_date ?? new Date().toISOString().slice(0, 10);
         const perfMonth    = new Date(mesiToDate).toLocaleString('en-GB', { month: 'long' });
 
-        // body.currentDate is the en-GB long string "18 April 2026" from the
-        // client — not ISO. Use today directly for the MTD window.
+        // Per-stock moves use a rolling 30-day lookback (see /api/monthly-performance),
+        // so describe that window — not a calendar month — to the model.
         const now = new Date();
-        const indexMtdWindow = `1 – ${now.getDate()} ${now.toLocaleString('en-GB', { month: 'short' })} ${now.getFullYear()}`;
+        const fmtDay = (d: Date) => `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })} ${d.getFullYear()}`;
+        const indexMtdWindow = `${fmtDay(new Date(now.getTime() - 30 * 86_400_000))} – ${fmtDay(now)}`;
 
         const tickers = body.positions.map(p => p.ticker);
         const [macro, boe, etfData, investegate, rawDividendRows, ftse, pressNews, metaRows] = await Promise.all([

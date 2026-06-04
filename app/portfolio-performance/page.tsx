@@ -159,10 +159,10 @@ export default function PortfolioPerformancePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tickers }),
       });
-      const data = await res.json();
+      const data = await res.json() as Record<string, { changePercent: number }>;
       const map: Record<string, number> = {};
-      for (const [ticker, val] of Object.entries(data as any))
-        map[ticker] = (val as any).changePercent;
+      for (const [ticker, val] of Object.entries(data))
+        map[ticker] = val.changePercent;
       setMonthlyPerfMap(map);
     } catch (err) {
       console.error('Monthly perf error:', err);
@@ -215,7 +215,7 @@ export default function PortfolioPerformancePage() {
             bottomChartMode === mode ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
           }`}
         >
-          {mode === 'monthly' ? 'Monthly' : 'YTD'}
+          {mode === 'monthly' ? '30 Days' : 'YTD'}
         </button>
       ))}
     </div>
@@ -223,11 +223,11 @@ export default function PortfolioPerformancePage() {
 
   const bottomItems    = bottomChartMode === 'monthly' ? thisMonthItems : ytdItems;
   const bottomTitle    = bottomChartMode === 'monthly'
-    ? `Performance of Stocks This Month — ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`
+    ? 'Performance of Stocks — Last 30 Days'
     : `Year-to-Date Performance — ${new Date().getFullYear()}`;
-  const bottomValueLabel = bottomChartMode === 'monthly' ? 'Monthly change (%)' : 'YTD change (%)';
+  const bottomValueLabel = bottomChartMode === 'monthly' ? '30-day change (%)' : 'YTD change (%)';
   const bottomSub      = bottomChartMode === 'monthly'
-    ? `Last ${new Date().getDate()} day${new Date().getDate() === 1 ? '' : 's'}`
+    ? 'Rolling 30-day window'
     : '2 Jan 2026 → today';
 
   if (loading) return (

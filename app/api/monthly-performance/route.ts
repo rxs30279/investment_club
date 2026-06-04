@@ -1,7 +1,8 @@
 // app/api/monthly-performance/route.ts
 //
-// Returns each holding's % change for the current month
-// by fetching start-of-month and current prices from Yahoo Finance.
+// Returns each holding's % change over a rolling 30-day lookback window
+// (not the calendar month) by fetching the close ~30 days ago and the latest
+// close from Yahoo Finance.
 
 import { NextResponse } from 'next/server';
 
@@ -17,10 +18,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'tickers array required' }, { status: 400 });
     }
 
-    // Start of current month at midnight
+    // Rolling 30-day lookback window
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const fromTs = Math.floor(startOfMonth.getTime() / 1000) - 86400 * 3; // 3 day buffer
+    const LOOKBACK_DAYS = 30;
+    const periodStart = new Date(now.getTime() - LOOKBACK_DAYS * 86_400_000);
+    const fromTs = Math.floor(periodStart.getTime() / 1000) - 86400 * 5; // buffer so a trading day exists at/just before the boundary
     const toTs   = Math.floor(now.getTime() / 1000);
 
     const results: Record<string, { monthStart: number; current: number; changePercent: number }> = {};
@@ -42,12 +44,34 @@ export async function POST(request: Request) {
           const result = json?.chart?.result?.[0];
           if (!result) return;
 
-          const closes: number[] = result.indicators?.adjclose?.[0]?.adjclose ?? [];
-          const validCloses = closes.filter((c: number) => c != null && c > 0);
-          if (validCloses.length < 2) return;
+          const ts: number[] = result.timestamp ?? [];
+          const closes: (number | null)[] = result.indicators?.adjclose?.[0]?.adjclose ?? [];
+          if (ts.length === 0 || closes.length === 0) return;
 
-          const monthStart = validCloses[0];
-          const current    = validCloses[validCloses.length - 1];
+          // Baseline = first valid close ON/AFTER the 30-day boundary. The buffer
+          // above only exists to guarantee data near the boundary; we select by the
+          // boundary timestamp so buffer days before it are ignored.
+          const startSec = Math.floor(periodStart.getTime() / 1000);
+          const valid = (i: number) => closes[i] != null && closes[i]! > 0;
+
+          let startIdx = -1;
+          for (let i = 0; i < ts.length; i++) {
+            if (valid(i) && ts[i] >= startSec) { startIdx = i; break; }
+          }
+          let curIdx = -1;
+          for (let i = ts.length - 1; i >= 0; i--) {
+            if (valid(i)) { curIdx = i; break; }
+          }
+          if (startIdx === -1) {
+            // Nothing on/after the boundary — fall back to the last close before it.
+            for (let i = ts.length - 1; i >= 0; i--) {
+              if (valid(i) && ts[i] < startSec) { startIdx = i; break; }
+            }
+          }
+          if (startIdx === -1 || curIdx === -1) return;
+
+          const monthStart = closes[startIdx]!;
+          const current    = closes[curIdx]!;
           const changePercent = ((current - monthStart) / monthStart) * 100;
 
           results[ticker] = { monthStart, current, changePercent };
