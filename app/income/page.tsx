@@ -13,6 +13,7 @@ interface IncomeHolding {
   ticker:       string;
   name:         string;
   currentValue: number | null;
+  ownedSince:   string | null;
   lastExDiv:    string | null;
   lastAmount:   number | null;
   annualPence:  number | null;
@@ -109,6 +110,15 @@ export default function IncomePage() {
         const prices    = await fetchPrices();
         const positions = await calculatePositions(tx, prices);
 
+        // Earliest buy date per holding — dividends that went ex before this
+        // are filtered out server-side (the club didn't own the shares yet).
+        const firstBuyByHid = new Map<number, string>();
+        for (const t of tx) {
+          if (t.type !== 'buy') continue;
+          const cur = firstBuyByHid.get(t.holdingId);
+          if (!cur || t.date < cur) firstBuyByHid.set(t.holdingId, t.date);
+        }
+
         const res = await fetch('/api/income', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -118,6 +128,7 @@ export default function IncomePage() {
               name:         p.name,
               currentPrice: p.currentPrice,
               currentValue: p.currentValue,
+              ownedSince:   firstBuyByHid.get(p.holdingId) ?? null,
             })),
           }),
         });
@@ -242,7 +253,11 @@ export default function IncomePage() {
                             <div className="text-gray-500 text-xs">{h.ticker}</div>
                           </td>
                           <td className="px-4 sm:px-6 py-3 text-right whitespace-nowrap">
-                            {h.lastExDiv && received.has(`${h.ticker}|${h.lastExDiv}`) ? (
+                            {h.lastExDiv && h.ownedSince && h.lastExDiv < h.ownedSince ? (
+                              <span className="text-gray-600" title="Went ex before the club owned this holding">
+                                {fmtDate(h.lastExDiv)} †
+                              </span>
+                            ) : h.lastExDiv && received.has(`${h.ticker}|${h.lastExDiv}`) ? (
                               <span className="text-emerald-400">
                                 {fmtDate(h.lastExDiv)} <span title="Received by the club">✓</span>
                               </span>
@@ -312,20 +327,27 @@ export default function IncomePage() {
                             </td>
                             {Array.from({ length: maxDivs }).map((_, i) => {
                               const d = h.divs[i];
-                              const isReceived = d ? received.has(`${h.ticker}|${d.date}`) : false;
+                              const preOwned  = d && h.ownedSince ? d.date < h.ownedSince : false;
+                              const isReceived = d && !preOwned ? received.has(`${h.ticker}|${d.date}`) : false;
                               return (
                                 <td key={i} className="px-3 sm:px-4 py-3 text-right whitespace-nowrap align-top">
                                   {d ? (
                                     <>
                                       <div className="font-mono">
-                                        <span className={isReceived ? 'text-emerald-400' : 'text-gray-300'}>
+                                        <span
+                                          className={preOwned ? 'text-gray-400' : isReceived ? 'text-emerald-400' : 'text-gray-300'}
+                                          style={preOwned ? { textDecoration: 'line-through' } : undefined}
+                                        >
                                           {d.amount.toFixed(2)}p
                                         </span>
+                                        {preOwned && (
+                                          <span className="text-gray-500 ml-1" title="Went ex before the club owned this holding">†</span>
+                                        )}
                                         {isReceived && (
                                           <span className="text-emerald-400 ml-1" title="Received by the club">✓</span>
                                         )}
                                       </div>
-                                      <div className="text-gray-600 text-xs">{fmtShortDate(d.date)}</div>
+                                      <div className={preOwned ? 'text-gray-700 text-xs' : 'text-gray-600 text-xs'}>{fmtShortDate(d.date)}</div>
                                     </>
                                   ) : (
                                     <span className="text-gray-700">—</span>
@@ -343,6 +365,12 @@ export default function IncomePage() {
             )}
 
             <p className="text-xs text-gray-600 mt-6">
+              <span className="text-gray-500">†</span> Greyed-out dividends went ex before the club owned the
+              holding, so they were not received — they are shown for reference and still count towards the
+              stock&rsquo;s trailing yield. <span className="text-emerald-400">✓</span> marks dividends recorded as
+              received in the club&rsquo;s records.
+            </p>
+            <p className="text-xs text-gray-600 mt-2">
               Yields are estimates based on the last 12 months of declared dividends and the current share
               price. They are not forecasts and do not constitute financial advice.
             </p>

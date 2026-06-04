@@ -22,6 +22,7 @@ interface IncomePosition {
   name:         string;
   currentPrice: number;        // pounds
   currentValue: number | null; // pounds
+  ownedSince:   string | null; // ISO date of the club's first purchase
 }
 
 export async function POST(request: NextRequest) {
@@ -43,6 +44,9 @@ export async function POST(request: NextRequest) {
   const byTicker = new Map(rows.map(r => [r.ticker, r]));
 
   const holdings = positions.map(p => {
+    // Keep the stock's full 12-month history (so yield stays a true trailing
+    // figure); the client greys out any dividend that went ex before the club
+    // owned the shares, using ownedSince.
     const divs        = byTicker.get(p.ticker)?.divs ?? []; // already sorted newest-first
     const annualPence = divs.reduce((s, d) => s + d.amount, 0);
     const annualPence2dp = divs.length ? parseFloat(annualPence.toFixed(2)) : null;
@@ -53,6 +57,7 @@ export async function POST(request: NextRequest) {
       ticker:       p.ticker,
       name:         p.name,
       currentValue: p.currentValue,
+      ownedSince:   p.ownedSince,
       lastExDiv:    divs[0]?.date   ?? null,
       lastAmount:   divs[0]?.amount ?? null,
       annualPence:  annualPence2dp,
