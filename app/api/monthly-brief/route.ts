@@ -26,7 +26,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/admin-auth';
 import type { RequestBody } from '@/lib/monthly-brief/types';
 import {
-  fetchMacroData, fetchDividendRows, formatDividendData, fetchFtseAll,
+  fetchMacroData, fetchDividendRows, fetchFtseAll,
 } from '@/lib/sources/yahoo';
 import { fetchBoeMacro } from '@/lib/sources/boe';
 import { fetchAllInvestegateData } from '@/lib/sources/investegate';
@@ -61,11 +61,10 @@ const REQUIRED_SECTIONS: { label: string; pattern: RegExp }[] = [
   { label: '3. Outlook',                        pattern: /<h[23][^>]*>\s*3\.\s*Outlook/i },
   { label: '4. Press Coverage',                 pattern: /<h[23][^>]*>\s*4\.\s*Press Coverage/i },
   { label: '5. Portfolio vs Market',            pattern: /<h[23][^>]*>\s*5\.\s*Portfolio vs Market/i },
-  { label: '6. Sector Scorecard & Theme',       pattern: /<h[23][^>]*>[^<]*6\.[^<]*Sector Scorecard/i },
-  { label: '7. Income Corner',                  pattern: /<h[23][^>]*>[^<]*7\.[^<]*Income Corner/i },
-  { label: '8. Results & Corporate Actions',    pattern: /<h[23][^>]*>[^<]*8\.[^<]*Results/i },
-  { label: '9. Director Dealings',              pattern: /<h[23][^>]*>[^<]*9\.[^<]*Director Dealings/i },
-  { label: '10. One to Watch',                  pattern: /<h[23][^>]*>[^<]*10\.[^<]*One to Watch/i },
+  { label: '6. Sector Scorecard',               pattern: /<h[23][^>]*>[^<]*6\.[^<]*Sector Scorecard/i },
+  { label: '7. Results & Corporate Actions',    pattern: /<h[23][^>]*>[^<]*7\.[^<]*Results/i },
+  { label: '8. Director Dealings',              pattern: /<h[23][^>]*>[^<]*8\.[^<]*Director Dealings/i },
+  { label: '9. One to Watch',                   pattern: /<h[23][^>]*>[^<]*9\.[^<]*One to Watch/i },
 ];
 
 function findMissingSections(html: string): string[] {
@@ -156,8 +155,6 @@ export async function POST(request: NextRequest) {
         const { rnsData, directorData, materialData } = investegate;
         const lookupMeta = buildMetaLookup(metaRows);
 
-        const dividendData = formatDividendData(rawDividendRows);
-
         console.log('[monthly-brief] BoE macro:', JSON.stringify(boe));
         console.log('[monthly-brief] MESI monthly window:', mesiFromDate, '→', mesiToDate);
         console.log('[monthly-brief] FTSE all:', JSON.stringify(ftse));
@@ -190,7 +187,7 @@ export async function POST(request: NextRequest) {
           body.reportMonth, body.currentDate,
         );
         const part3bMessage = buildPart3bMessage(
-          portfolioJSON, macroJSON, materialData, dividendData,
+          portfolioJSON, macroJSON, materialData,
           body.reportMonth, body.currentDate,
         );
         const part3cMessage = buildPart3cMessage(

@@ -1,4 +1,4 @@
-import type { DividendEvent, DividendRow, FtseAll, FtseSeries, MacroData, Position } from '../monthly-brief/types';
+import type { DividendEvent, DividendRow, FtseAll, FtseSeries, MacroData } from '../monthly-brief/types';
 
 const YAHOO_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -43,7 +43,7 @@ export async function fetchDividendHistory(ticker: string): Promise<DividendEven
   return [];
 }
 
-export async function fetchDividendRows(positions: Position[]): Promise<DividendRow[]> {
+export async function fetchDividendRows(positions: { ticker: string; name: string }[]): Promise<DividendRow[]> {
   const results = await Promise.allSettled(
     positions.map(async p => ({
       ticker: p.ticker,

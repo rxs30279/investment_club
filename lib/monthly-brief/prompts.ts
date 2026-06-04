@@ -33,22 +33,21 @@ export function buildPart1Message(
     'CONTENTS LIST — Before any sections, render a compact styled dark-theme contents panel. ' +
     'Show two parts clearly:\n' +
     '  PART ONE: MARKET OVERVIEW — 1. The Big Picture  2. ETF Flow Signal  3. Outlook\n' +
-    '  PART TWO: CLUB ASSETS & THE MARKET — 4. Press Coverage  5. Portfolio vs Market  6. Sector Scorecard & Theme Tracker  7. Income Corner  8. Results & Corporate Actions  9. Director Dealings  10. One to Watch\n' +
+    '  PART TWO: CLUB ASSETS & THE MARKET — 4. Press Coverage  5. Portfolio vs Market  6. Sector Scorecard  7. Results & Corporate Actions  8. Director Dealings  9. One to Watch\n' +
     'Style as a card with two clearly labelled rows. No anchor links needed — plain text is fine.',
 
-    '1. THE BIG PICTURE — Macro tile row (GDP, CPI, GBP/USD, 10yr Gilt, Brent, Gold). 3–4 sentence macro summary. FTSE 100 vs FTSE 250 YTD banner with gap analysis.',
+    '1. THE BIG PICTURE — Macro tile row (GDP, CPI, GBP/USD, 10yr Gilt, Brent, Gold). 3–4 sentence macro summary.',
 
-    '2. ETF FLOW SIGNAL — Top 10 ETF themes table (Rank|Theme|Category|YTD|Signal: >40% VERY HOT, 20–40% HOT, 10–20% WARM, <10% COOL). Absent themes. Portfolio alignment table + FLOW ALIGNMENT SCORE badge. Stealth themes note. Dropdown: methodology.',
+    '2. ETF FLOW SIGNAL — Top 10 ETF themes table (Rank|Theme|Category|YTD|Signal: >40% VERY HOT, 20–40% HOT, 10–20% WARM, <10% COOL). Absent themes. Stealth themes note. Dropdown: methodology.',
 
-    '3. OUTLOOK — Two stacked cards, one for "Month Ahead" and one for "Year Ahead". ' +
-    'Each card uses this exact structure (do NOT use display:flex or display:grid — emoji must sit ABOVE the heading, not beside it):\n' +
+    '3. OUTLOOK — A single "Month Ahead" card only (no Year Ahead). ' +
+    'Use this exact structure (do NOT use display:flex or display:grid — emoji must sit ABOVE the heading, not beside it):\n' +
     '<div class="section" style="background:#1f2937; border:1px solid #374151; border-radius:8px; padding:16px 20px; margin-bottom:16px;">\n' +
     '  <div style="font-size:48px; line-height:1; margin-bottom:8px;">⛅</div>\n' +
     '  <h3 style="margin:0 0 8px 0;">Month Ahead — June 2026</h3>\n' +
     '  <p style="margin:0;">3–4 sentences here.</p>\n' +
     '</div>\n' +
-    'Year Ahead card uses the same structure with 4–5 sentences. ' +
-    'Dropdown (KEEP CONCISE — two sentences max per item): 2 upside surprises, 2 downside risks, one-paragraph mid-cap case, one-paragraph M&A outlook.',
+    'Dropdown (KEEP CONCISE — two sentences max per item): 2 upside surprises and 2 downside risks for the month ahead.',
   ].join('\n\n');
 
   return (
@@ -174,11 +173,13 @@ export function buildPart3aMessage(
   currentDate: string,
 ): string {
   const section6 =
-    '6. SECTOR SCORECARD & THEME TRACKER — Merged section combining sector performance with theme analysis. ' +
-    'Backward table (Sector|Holdings|Market move|Our move|ETF Flow). FTSE100 vs FTSE250 deep dive. ' +
-    'Forward compass (Sector|View|Rationale|ETF Signal|Key Risk). ' +
-    'Then a Theme table: Theme|Direction|Strength|ETF Signal|Portfolio Impact — cover the 8 most relevant of: Energy, Gold/Metals, Nuclear, M&A, Dividends, BOE Rates, Defence, Rare Earths, Activism, AI, Sterling, Clean Energy. ' +
-    'Dropdown: bull/bear case 2 points each per sector. KEEP CONCISE — one sentence per bullet, no padding.';
+    '6. SECTOR SCORECARD — Keep this SIMPLE: a single sector table and nothing else. ' +
+    'Do NOT include a forward compass, an FTSE100 vs FTSE250 deep dive, a separate theme tracker table, or a bull/bear dropdown. ' +
+    'One short intro sentence, then ONE table with these columns: Sector | Our Holdings | Our Move (this month) | Outlook. ' +
+    'One row per sector the club holds, sorted by Our Move best to worst. ' +
+    'Use a traffic-light emoji in the Our Move cell (🟢 up / 🟡 flat / 🔴 down). ' +
+    'The Outlook cell is a single short phrase (e.g. "Positive", "Watch", "Cautious") plus at most a half-sentence why. ' +
+    'No padding, no extra prose after the table.';
 
   return (
     'Today is ' + currentDate + '. You are writing PART 3a of 6 of the MESI Investment Club Monthly Intelligence Briefing for ' + reportMonth + '.\n\n' +
@@ -194,27 +195,22 @@ export function buildPart3aMessage(
   );
 }
 
-// Sections 7 (Income Corner) + 8 (Results & Corporate Actions).
+// Section 7 (Results & Corporate Actions). Income Corner used to live here too,
+// but it now has its own page (/income) driven by live Yahoo data.
 export function buildPart3bMessage(
   portfolioJSON: string,
   macroJSON: string,
   materialData: string,
-  dividendData: string,
   reportMonth: string,
   currentDate: string,
 ): string {
   const sections = [
-    '7. INCOME CORNER — Use the DIVIDEND DATA provided (ex-div dates + amounts from Yahoo Finance, last 12 months per holding). ' +
-    'Table: Ticker | Company | Ex-Div Date | Amount (p) | Annual Yield est. | Vs FTSE100 avg. ' +
-    'Copy Ticker, Company, Ex-Div Date and Amount directly from the DIVIDEND DATA block. Sort by Ex-Div Date descending (most recent first). Do NOT include a Payment Date column — payment dates are not in the data. ' +
-    'For Annual Yield est., use the dividend_yield_pct field in the PORTFOLIO JSON when present (it is computed from real trailing-12m dividends); fall back to your own knowledge only if the field is "[no dividend data...]". Compare against FTSE100 ~3.5% dividend yield / ~6.5% total cash yield. ' +
-    'Call out dividends paid recently, any cuts or increases vs prior year, and buybacks you are aware of. ' +
-    'Dropdown: dividend history per holding.',
-
-    '8. RESULTS & CORPORATE ACTIONS — Use ONLY the MATERIAL RNS DATA provided. Do NOT add items from your training knowledge, do NOT recall past announcements, and do NOT supplement. If the data is short, the table is short. ' +
+    '7. RESULTS & CORPORATE ACTIONS — Use ONLY the MATERIAL RNS DATA provided. Do NOT add items from your training knowledge, do NOT recall past announcements, and do NOT supplement. If the data is short, the table is short. ' +
     'For each item: Ticker | Company | Category | Date | Key numbers from summary | Verdict (Beat/In-line/Miss/Transformative). ' +
     'For the Verdict cell, wrap just the emoji + verdict word in a nowrap span so they cannot split across lines: <td><span class="nowrap">🟢 Beat</span> — growth story intact</td>. The descriptive part after the em-dash may wrap. ' +
     'Group by category. Aggregated rows (headline contains "× ... announcements") describe a recurring programme — render them as one row each, do NOT split them back out. ' +
+    'For the Shareholder Changes category specifically, include ONLY strong, material signals — a new substantial holder crossing a major threshold (3% / 5% / 10%), a sizeable stake increase, or a full exit. ' +
+    'OMIT routine or minor TR-1 notifications and small threshold crossings. If nothing is material, drop the Shareholder Changes group entirely. ' +
     'Dropdown: full summary per item (only items with a summary in the data). If no material announcements, say so explicitly.',
   ].join('\n\n');
 
@@ -222,13 +218,12 @@ export function buildPart3bMessage(
     'Today is ' + currentDate + '. You are writing PART 3b of 6 of the MESI Investment Club Monthly Intelligence Briefing for ' + reportMonth + '.\n\n' +
     'PORTFOLIO (for context):\n' + portfolioJSON + '\n\n' +
     'MACRO (for context):\n' + macroJSON + '\n\n' +
-    'MATERIAL RNS (PRIMARY SOURCE for section 8 Results & Corporate Actions):\n' + cap(materialData, 8000) + '\n\n' +
-    'DIVIDEND DATA (live ex-dividend dates and amounts from Yahoo Finance — last 12 months per holding):\n' + cap(dividendData, 4000) + '\n\n' +
+    'MATERIAL RNS (PRIMARY SOURCE for section 7 Results & Corporate Actions):\n' + cap(materialData, 8000) + '\n\n' +
     'For all live data above use it directly — do not substitute training knowledge where live data is present.\n\n' +
     'OUTPUT: This is a continuation — do NOT start a new <div id="monthly-report"> or repeat any earlier sections. ' +
-    'Output sections 7 and 8 only. Do NOT add a footer or closing </div> for #monthly-report — part 3c follows. ' +
+    'Output section 7 only. Do NOT add a footer or closing </div> for #monthly-report — part 3c follows. ' +
     'CRITICAL: Every <details>, <ul>, <ol>, <table> you open MUST be closed before your output ends.\n\n' +
-    'SECTIONS (write both):\n\n' + sections
+    'SECTION (write section 7 only):\n\n' + sections
   );
 }
 
@@ -241,13 +236,15 @@ export function buildPart3cMessage(
   currentDate: string,
 ): string {
   const sections = [
-    '9. DIRECTOR DEALINGS — Use the DIRECTOR DEALINGS DATA provided (live from Investegate). ' +
+    '8. DIRECTOR DEALINGS — Use the DIRECTOR DEALINGS DATA provided (live from Investegate). ' +
+    'Include ONLY strong signals: material insider BUYS, or SELLS that are large as a percentage of the holding or made by a senior director (CEO / CFO / Chair). ' +
+    'OMIT small or routine dealings — option/award exercises, scrip-dividend take-ups, and trivial admin trades. ' +
     'Table: Date | Ticker | Company | Director/Role | Buy/Sell | Shares | Price (p) | Value £ | Signal. ' +
     'For the Buy/Sell cell use class="nowrap" on the <td> (short content). For the Signal cell wrap just the emoji + signal word in a nowrap span, leaving descriptive text free to wrap: <td><span class="nowrap">🟢 Bullish</span> — large insider buy</td>. ' +
-    'If no dealings, say so clearly. Interpret sentiment: buying = bullish insider signal, selling = neutral unless large % of holding. ' +
+    'If no strong dealings, say so clearly. Interpret sentiment: buying = bullish insider signal, selling = neutral unless large % of holding. ' +
     'Dropdown: context on each dealing.',
 
-    '10. ONE TO WATCH — One holding needing attention next month. 3–4 sentences. Index, theme, ETF flow context.',
+    '9. ONE TO WATCH — One holding needing attention next month. 3–4 sentences. Index, theme, ETF flow context.',
   ].join('\n\n');
 
   return (
@@ -257,8 +254,8 @@ export function buildPart3cMessage(
     'DIRECTOR DEALINGS (live from Investegate — last 60 trading days, portfolio holdings only, with AI summaries):\n' + cap(directorData, 5000) + '\n\n' +
     'For all live data above use it directly — do not substitute training knowledge where live data is present.\n\n' +
     'OUTPUT: This is a continuation — do NOT start a new <div id="monthly-report"> or repeat any earlier sections. ' +
-    'Output sections 9 and 10, then the footer paragraph, then close with </div>.\n\n' +
-    'FOOTER (after section 10): Before the footer text, render a full-width <hr> styled with border-color #374151 and margin 32px 0. Then render the footer as a small centered paragraph in text color #6b7280. Text: Report generated ' + currentDate +
+    'Output sections 8 and 9, then the footer paragraph, then close with </div>.\n\n' +
+    'FOOTER (after section 9): Before the footer text, render a full-width <hr> styled with border-color #374151 and margin 32px 0. Then render the footer as a small centered paragraph in text color #6b7280. Text: Report generated ' + currentDate +
     ' | Portfolio data: Club database | Market data: Investegate, Yahoo Finance UK, Bank of England, ONS' +
     ' | ETF flow data: JustETF (justetf.com/uk) | RNS, Results & Director Dealings: Investegate' +
     ' | Press coverage: Google News | This report is produced for club members only and does not constitute financial advice.\n\n' +

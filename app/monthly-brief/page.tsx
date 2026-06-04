@@ -271,6 +271,7 @@ function ReadingList({
 
 export default function MonthlyBriefPage() {
   const [html,        setHtml]       = useState<string>('');
+  const [reportMonth, setReportMonth] = useState<string>(reportMonthLabel());
   const [loading,     setLoading]    = useState(true);
   const [articles,    setArticles]   = useState<MemberArticle[]>([]);
   const [saving,      setSaving]     = useState(false);
@@ -280,13 +281,20 @@ export default function MonthlyBriefPage() {
 
   useEffect(() => {
     async function load() {
-      // Load the current month's report
+      // Load the most recently generated report, whatever month it is for.
+      // Querying strictly by the current calendar month meant a report vanished
+      // from the page as soon as the month rolled over, even though the row was
+      // still in Supabase — it just no longer matched today's month label.
       const { data: report } = await supabase
         .from('monthly_reports')
-        .select('html')
-        .eq('report_month', reportMonthLabel())
+        .select('html, report_month')
+        .order('generated_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
-      if (report?.html) setHtml(report.html);
+      if (report?.html) {
+        setHtml(report.html);
+        if (report.report_month) setReportMonth(report.report_month);
+      }
 
       // Load member articles from the last 2 months; also delete expired ones
       const cutoff = twoMonthsAgoIso();
@@ -380,7 +388,7 @@ export default function MonthlyBriefPage() {
             Monthly Intelligence Briefing
           </h1>
           <p className="text-sm text-gray-400 mt-1">
-            {reportMonthLabel()} — AI-generated analysis using live portfolio data
+            {reportMonth} — AI-generated analysis using live portfolio data
           </p>
         </div>
 
@@ -407,7 +415,7 @@ export default function MonthlyBriefPage() {
           <div ref={reportRef} className="rounded-xl overflow-hidden border border-gray-700">
             <div className="bg-gray-900 border-b border-gray-700 px-4 sm:px-6 py-3 flex items-center justify-between">
               <span className="text-white font-semibold text-sm">
-                {reportMonthLabel()} — MESI Intelligence Briefing
+                {reportMonth} — MESI Intelligence Briefing
               </span>
               <button
                 onClick={() => {
