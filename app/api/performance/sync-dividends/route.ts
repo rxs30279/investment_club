@@ -30,26 +30,45 @@ async function downloadPdf(url: string): Promise<Buffer> {
 /**
  * Extract dividend rows from PDF text.
  *
- * Expected section format in the PDF:
- *   Dividends Received Date Amount
- *   Celebrus Technologie 14/01/2026 4.36
- *   4.36                              ← section total (no date, ignored)
+ * pdf-parse emits the section with the columns concatenated (no spaces) and
+ * one row per line, e.g.:
+ *   Dividends Received
+ *   DateAmount                        ← column header
+ *   Melrose05/05/20268.83
+ *   Lloyds Banking Group19/05/202628.84
+ *   37.67                             ← section total (no date, ignored)
+ *   Members Details                   ← next section
+ *
+ * We anchor on the "Dividends Received" header and read rows until the first
+ * line that isn't a dividend row (the total or the next section). Scoping to
+ * the section is essential — the "Value of Assets" and "Investments Sold"
+ * tables also contain <text><DD/MM/YYYY><amount> rows that would otherwise
+ * match.
  */
 function extractDividends(text: string): { company: string; date: string; amount: number }[] {
-  // Confirm the section exists
-  if (!/Dividends Received/i.test(text)) return [];
+  const startIdx = text.search(/Dividends Received/i);
+  if (startIdx === -1) return [];
 
   const results: { company: string; date: string; amount: number }[] = [];
 
-  // Match any line containing: <text> <DD/MM/YYYY> <decimal>
-  const rowRe = /^(.+?)\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+\.\d{2})\s*$/gm;
-  let match;
-  while ((match = rowRe.exec(text)) !== null) {
-    const company = match[1].trim();
-    const date    = parseUKDate(match[2]);
-    const amount  = parseFloat(match[3]);
-    if (company && amount > 0) {
-      results.push({ company, date, amount });
+  // A dividend row: <company><DD/MM/YYYY><amount>, no separators required.
+  // Amount may carry thousands separators (e.g. 1,234.56).
+  const rowRe = /^(.+?)(\d{2}\/\d{2}\/\d{4})([\d,]+\.\d{2})$/;
+
+  let started = false;
+  for (const rawLine of text.slice(startIdx).split('\n')) {
+    const match = rawLine.trim().match(rowRe);
+    if (match) {
+      started = true;
+      const company = match[1].trim();
+      const date    = parseUKDate(match[2]);
+      const amount  = parseFloat(match[3].replace(/,/g, ''));
+      if (company && amount > 0) {
+        results.push({ company, date, amount });
+      }
+    } else if (started) {
+      // First non-row line after the rows began = section total / next section.
+      break;
     }
   }
 
@@ -92,18 +111,19 @@ export async function POST(req: Request) {
     const reportIdParam = url.searchParams.get('reportId');
     const targetReportId = reportIdParam ? Number(reportIdParam) : null;
 
-    // Targeted mode (post-upload auto-trigger): process exactly one report.
-    // Bulk mode (manual button): process all current-year reports.
+    // Targeted mode (post-upload auto-trigger): process exactly that report.
+    // Manual "Sync Performance": process only the single most recent report.
+    // Each month's dividends are captured when its report is uploaded, so there
+    // is no need to re-scan older sheets — doing so only re-flags dividends from
+    // holdings that have since been sold.
     let reportsQuery = supabaseAdmin
       .from('treasurer_reports')
-      .select('id, file_name, file_url, date')
-      .order('date', { ascending: true });
+      .select('id, file_name, file_url, date');
 
     if (targetReportId !== null && Number.isFinite(targetReportId)) {
       reportsQuery = reportsQuery.eq('id', targetReportId);
     } else {
-      const yearStart = `${new Date().getFullYear()}-01-01`;
-      reportsQuery = reportsQuery.gte('date', yearStart);
+      reportsQuery = reportsQuery.order('date', { ascending: false }).limit(1);
     }
 
     const { data: reports, error: reportsError } = await reportsQuery;
@@ -113,7 +133,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         message: targetReportId !== null
           ? `Report ${targetReportId} not found`
-          : `No ${new Date().getFullYear()} reports found`,
+          : 'No reports found',
         processed: 0, skipped: 0, errors: [],
       });
     }
@@ -126,15 +146,12 @@ export async function POST(req: Request) {
     if (holdingsError) throw holdingsError;
     const holdings = (holdingsData ?? []).map(h => ({ holdingId: h.id as number, name: h.name as string }));
 
-    // 3. Fetch existing dividends to avoid duplicates. For bulk (current-year)
-    // mode we only need this year's rows; for single-report mode the PDF could
-    // be back-dated, so pull all dividends and let the (holding_id|date) key
+    // 3. Fetch existing dividends to avoid duplicates. A report can carry
+    // back-dated dividends, so pull all rows and let the (holding_id|date) key
     // catch duplicates.
-    let existingQuery = supabaseAdmin.from('dividends').select('holding_id, date');
-    if (targetReportId === null) {
-      existingQuery = existingQuery.gte('date', `${new Date().getFullYear()}-01-01`);
-    }
-    const { data: existingDivs } = await existingQuery;
+    const { data: existingDivs } = await supabaseAdmin
+      .from('dividends')
+      .select('holding_id, date');
 
     const existingSet = new Set(
       (existingDivs ?? []).map(d => `${d.holding_id}|${d.date}`)

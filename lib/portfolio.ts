@@ -96,6 +96,18 @@ export async function saveDividends(dividends: Dividend[]): Promise<void> {
   }
 }
 
+export async function deleteDividend(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('dividends')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting dividend:', error);
+    throw new Error(`Failed to delete dividend ${id}: ${error.message}`);
+  }
+}
+
 // ==================== HOLDINGS REFERENCE ====================
 export async function getHoldingsReference(): Promise<any[]> {
   const { data, error } = await supabase

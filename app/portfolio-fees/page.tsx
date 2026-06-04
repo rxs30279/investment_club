@@ -10,6 +10,7 @@ import {
   calculatePortfolioSummary,
   getDividends,
   saveDividends,
+  deleteDividend,
 } from '@/lib/portfolio';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -126,8 +127,8 @@ export default function PortfolioFeesPage() {
 
   const handleDeleteDividend = async (id: number) => {
     if (!confirm('Delete this dividend?')) return;
-    const updated = dividends.filter(d => d.id !== id);
-    await saveDividends(updated); setDividends(updated);
+    await deleteDividend(id);
+    setDividends(dividends.filter(d => d.id !== id));
   };
 
   const toggleStampDutyExclusion = (holdingId: number) => {
