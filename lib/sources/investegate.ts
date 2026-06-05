@@ -215,6 +215,41 @@ function extractAnnouncementLinks(html: string): { url: string; headline: string
   return out;
 }
 
+// Structured per-ticker RNS for the watchlist news panel. Reuses the same page
+// scan + link extraction as fetchAllInvestegateData, but returns raw headlines
+// grouped by ticker (no AI summaries, no classification) and scans a shorter
+// recent window since the panel only shows recent announcements.
+export async function fetchInvestegateRnsByTicker(
+  tickers: string[],
+  days = 30,
+): Promise<Record<string, RnsItem[]>> {
+  if (tickers.length === 0) return {};
+
+  // Investegate URLs use bare tickers (e.g. "rel") — strip exchange suffixes.
+  const bare = (t: string) => t.toUpperCase().replace(/[^A-Z0-9.]/g, '').replace(/\.[A-Z]{1,2}$/, '');
+  const tickerSet = new Set(tickers.map(bare));
+
+  const pages = await fetchDailyPages(buildTradingDates(days));
+  const byTicker: Record<string, RnsItem[]> = {};
+
+  for (const { date, html } of pages) {
+    for (const { url: rawUrl, headline } of extractAnnouncementLinks(html)) {
+      const url = rawUrl.startsWith('http') ? rawUrl : `https://www.investegate.co.uk${rawUrl}`;
+      const tickerM = TICKER_RE.exec(url);
+      if (!tickerM) continue;
+      const ticker = tickerM[1].toUpperCase();
+      if (!tickerSet.has(ticker)) continue;
+      (byTicker[ticker] ??= []).push({ date, ticker, headline, url });
+    }
+  }
+
+  // Most recent first within each ticker.
+  for (const ticker of Object.keys(byTicker)) {
+    byTicker[ticker].sort((a, b) => b.date.localeCompare(a.date));
+  }
+  return byTicker;
+}
+
 export async function fetchAllInvestegateData(tickers: string[]): Promise<InvestegateData> {
   const empty = {
     rnsData:      '[No RNS data — no tickers provided]',

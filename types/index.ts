@@ -90,6 +90,49 @@ export interface Dividend {
   currency: string;
   notes?: string;
 }
+// ── Watchlist ────────────────────────────────────────────────────────────────
+// A shared, club-wide watchlist of candidate UK shares (separate from holdings).
+
+export interface WatchlistItem {
+  id: number;
+  ticker: string;          // stored with .L suffix, e.g. "RELX.L"
+  name: string;
+  nominatedBy: string | null; // club member who put the stock forward
+  targetBuy: number | null; // editable price alert threshold (pounds)
+  createdAt: string;
+}
+
+// Live market data derived from a single Yahoo chart call per ticker.
+export interface WatchlistQuote {
+  ticker: string;
+  price: number;            // pounds
+  prevClose: number;        // pounds
+  dayChangePct: number;
+  sparkline: number[];      // ~30 recent daily closes (pounds)
+  high52: number;           // pounds
+  low52: number;            // pounds
+  riskScore: number;        // 1 (low) .. 10 (high), from annualised volatility
+}
+
+export interface WatchlistNewsItem {
+  title: string;
+  source: string;
+  date: string;
+  url?: string;
+}
+
+export interface WatchlistRnsItem {
+  date: string;
+  headline: string;
+  url: string;
+}
+
+export interface WatchlistNews {
+  ticker: string;
+  press: WatchlistNewsItem[];
+  rns: WatchlistRnsItem[];
+}
+
 // Stock fundamentals data
 export interface StockFundamentals {
   price: number;

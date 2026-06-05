@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
+/* This dashboard is dark-only — every page renders on a dark background. Default
+   to a dark theme so inherited text is light regardless of the OS colour-scheme.
+   (Previously :root defaulted to light text, so on a light-mode OS any element
+   relying on inherited colour rendered near-black-on-dark — i.e. invisible.)
+   color-scheme: dark also makes form controls, autofill and scrollbars render
+   dark in light-mode browsers. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -10,13 +17,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

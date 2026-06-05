@@ -29,8 +29,8 @@ function extractTag(block: string, tag: string): string | null {
   return decodeXmlEntities(raw).trim();
 }
 
-function parseRssItems(xml: string, fallbackSource: string): { title: string; source: string; date: string }[] {
-  const out: { title: string; source: string; date: string }[] = [];
+function parseRssItems(xml: string, fallbackSource: string): { title: string; source: string; date: string; url: string }[] {
+  const out: { title: string; source: string; date: string; url: string }[] = [];
   const blocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) ?? [];
   for (const block of blocks.slice(0, 5)) {
     const rawTitle = extractTag(block, 'title') ?? '';
@@ -39,6 +39,8 @@ function parseRssItems(xml: string, fallbackSource: string): { title: string; so
     const raw = extractTag(block, 'pubDate') ?? '';
     let date = 'recent';
     try { if (raw) date = new Date(raw).toISOString().slice(0, 10); } catch { /* keep 'recent' */ }
+
+    const url = extractTag(block, 'link') ?? '';
 
     // Google News RSS embeds the source at the end of the title as " - Source Name".
     let title  = rawTitle;
@@ -54,12 +56,16 @@ function parseRssItems(xml: string, fallbackSource: string): { title: string; so
       }
     }
 
-    if (title.length > 8) out.push({ title, source, date });
+    if (title.length > 8) out.push({ title, source, date, url });
   }
   return out;
 }
 
-async function fetchCompanyNews(companyName: string): Promise<NewsItem[]> {
+export type NewsItemWithUrl = NewsItem & { url: string };
+
+// Exported for the watchlist news panel, which needs structured per-company
+// items (with article links) rather than the formatted text block below.
+export async function fetchCompanyNews(companyName: string): Promise<NewsItemWithUrl[]> {
   // Two queries: exact company name + broader name (first two words) to catch
   // articles that abbreviate the company name.
   const q1   = encodeURIComponent(`"${companyName}"`);
@@ -75,7 +81,7 @@ async function fetchCompanyNews(companyName: string): Promise<NewsItem[]> {
   ]);
 
   const seen  = new Set<string>();
-  const items: NewsItem[] = [];
+  const items: NewsItemWithUrl[] = [];
 
   const add = (parsed: ReturnType<typeof parseRssItems>) => {
     for (const p of parsed) {
