@@ -314,7 +314,7 @@ export default function WatchlistPage() {
                     <tr className="text-left">
                       <th className="px-3 py-3 text-xs font-medium text-gray-400">Stock</th>
                       <th className="px-3 py-3 text-right text-xs font-medium text-gray-400">Price</th>
-                      <th className="px-3 py-3 text-right text-xs font-medium text-gray-400">Day</th>
+                      <th className="hidden sm:table-cell px-3 py-3 text-right text-xs font-medium text-gray-400">Day</th>
                       <th className="hidden md:table-cell px-3 py-3 text-center text-xs font-medium text-gray-400">Trend</th>
                       <th className="hidden lg:table-cell px-3 py-3 text-left min-w-[140px] text-xs font-medium text-gray-400">52W Range</th>
                       <th className="hidden sm:table-cell px-3 py-3 text-right text-xs font-medium text-gray-400">Target</th>
@@ -367,7 +367,12 @@ export default function WatchlistPage() {
                                     {item.nominatedBy ?? '+ nominator'}
                                   </button>
                                 )}
-                                <p className="text-white font-medium truncate max-w-[160px]">{item.name}</p>
+                                {/* Mobile: smaller name, capped at 15 chars to keep the table narrow */}
+                                <p className="sm:hidden text-white font-medium text-xs truncate max-w-[110px]">
+                                  {item.name.length > 15 ? `${item.name.slice(0, 15)}…` : item.name}
+                                </p>
+                                {/* sm and up: full name */}
+                                <p className="hidden sm:block text-white font-medium truncate max-w-[160px]">{item.name}</p>
                                 <a
                                   href={`https://uk.finance.yahoo.com/quote/${item.ticker}`}
                                   target="_blank"
@@ -384,7 +389,7 @@ export default function WatchlistPage() {
                             {q && q.price ? `£${q.price.toFixed(2)}` : '—'}
                           </td>
                           {/* Day */}
-                          <td className={`px-3 py-3 text-right font-medium ${q && q.dayChangePct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          <td className={`hidden sm:table-cell px-3 py-3 text-right font-medium ${q && q.dayChangePct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {q && q.price ? `${q.dayChangePct >= 0 ? '+' : ''}${q.dayChangePct.toFixed(2)}%` : '—'}
                           </td>
                           {/* Trend */}
