@@ -8,12 +8,13 @@ const YAHOO_HEADERS = {
 
 const EMPTY = (ticker: string): WatchlistQuote => ({
   ticker, price: 0, prevClose: 0, dayChangePct: 0,
-  sparkline: [], high52: 0, low52: 0, riskScore: 0,
+  sparkline: [], high52: 0, low52: 0, riskScore: 0, volatility: 0,
 });
 
-// 1 (calm) .. 10 (wild), from annualised stdev of daily log returns.
-// ~0.09 annualised vol maps to 1, ~0.90+ maps to 10 — covers blue chips to AIM small caps.
-function computeRisk(closes: number[]): number {
+// Annualised volatility (decimal, e.g. 0.28) from daily log returns × √252.
+// Scale-invariant, so the pence→pounds division on closes doesn't affect it.
+// Returns 0 when there isn't enough data to be meaningful.
+function annualizedVol(closes: number[]): number {
   if (closes.length < 10) return 0;
   const rets: number[] = [];
   for (let i = 1; i < closes.length; i++) {
@@ -22,8 +23,15 @@ function computeRisk(closes: number[]): number {
   if (rets.length < 5) return 0;
   const mean = rets.reduce((s, r) => s + r, 0) / rets.length;
   const variance = rets.reduce((s, r) => s + (r - mean) ** 2, 0) / rets.length;
-  const annualisedVol = Math.sqrt(variance) * Math.sqrt(252);
-  return Math.min(10, Math.max(1, Math.ceil(annualisedVol / 0.09)));
+  return Math.sqrt(variance) * Math.sqrt(252);
+}
+
+// 1 (calm) .. 10 (wild), from annualised volatility.
+// ~0.09 annualised vol maps to 1, ~0.90+ maps to 10 — covers blue chips to AIM small caps.
+function computeRisk(closes: number[]): number {
+  const vol = annualizedVol(closes);
+  if (vol === 0) return 0;
+  return Math.min(10, Math.max(1, Math.ceil(vol / 0.09)));
 }
 
 async function fetchQuote(ticker: string): Promise<WatchlistQuote> {
@@ -58,6 +66,7 @@ async function fetchQuote(ticker: string): Promise<WatchlistQuote> {
     high52: Math.max(...closes),
     low52: Math.min(...closes),
     riskScore: computeRisk(closes),
+    volatility: Math.round(annualizedVol(closes) * 1000) / 10,
   };
 }
 

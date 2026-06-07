@@ -20,6 +20,12 @@ const fmtPct = (v: number) =>
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
 
+// Volatility helpers: colour by risk band and scale the axis to a rounded max.
+const volColor = (v: number) => v < 20 ? '#10b981' : v <= 40 ? '#f59e0b' : '#ef4444';
+const volAxisMax = (values: number[]) =>
+  values.length ? Math.max(40, Math.ceil(Math.max(...values) / 10) * 10) : 40;
+const fmtVol = (v: number) => `${v.toFixed(1)}%`;
+
 function firstPurchaseDates(transactions: Transaction[]): Map<number, string> {
   const map = new Map<number, string>();
   for (const tx of transactions) {
@@ -34,8 +40,17 @@ function firstPurchaseDates(transactions: Transaction[]): Map<number, string> {
 
 interface BarItem { label: string; value: number; subLabel?: string; }
 
-function HorizontalBarChart({ items, title, valueLabel, sub, action }: {
+function HorizontalBarChart({
+  items, title, valueLabel, sub, action,
+  colorFn, tooltipFormat, axisMin, axisMax, showWinLoss = true, footer,
+}: {
   items: BarItem[]; title: string; valueLabel: string; sub?: string; action?: React.ReactNode;
+  colorFn?: (v: number) => string;
+  tooltipFormat?: (v: number) => string;
+  axisMin?: number;
+  axisMax?: number;
+  showWinLoss?: boolean;
+  footer?: React.ReactNode;
 }) {
   const chartRef      = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
@@ -44,7 +59,9 @@ function HorizontalBarChart({ items, title, valueLabel, sub, action }: {
   useEffect(() => {
     if (!chartRef.current || items.length === 0) return;
     chartInstance.current?.destroy();
-    const colors = items.map(i => i.value >= 0 ? '#10b981' : '#ef4444');
+    const color = colorFn ?? ((v: number) => v >= 0 ? '#10b981' : '#ef4444');
+    const tooltip = tooltipFormat ?? ((v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`);
+    const colors = items.map(i => color(i.value));
     chartInstance.current = new Chart(chartRef.current, {
       type: 'bar',
       data: {
@@ -58,12 +75,12 @@ function HorizontalBarChart({ items, title, valueLabel, sub, action }: {
         plugins: {
           legend: { display: false },
           tooltip: {
-            callbacks: { label: ctx => `${(ctx.raw as number) >= 0 ? '+' : ''}${(ctx.raw as number).toFixed(2)}%` },
+            callbacks: { label: ctx => tooltip(ctx.raw as number) },
             backgroundColor: 'rgba(0,0,0,0.9)', titleColor: '#fff', bodyColor: '#ccc',
           },
         },
         scales: {
-          x: { grid: { color: 'rgba(75,85,99,0.2)' },
+          x: { min: axisMin, max: axisMax, grid: { color: 'rgba(75,85,99,0.2)' },
             ticks: { color: '#9ca3af', callback: v => `${v}%`, font: { size: 11 } } },
           y: { grid: { display: false },
             ticks: { color: '#9ca3af', font: { size: 10 }, autoSkip: false } },
@@ -72,7 +89,7 @@ function HorizontalBarChart({ items, title, valueLabel, sub, action }: {
       },
     });
     return () => { chartInstance.current?.destroy(); };
-  }, [items]);
+  }, [items, colorFn, tooltipFormat, axisMin, axisMax]);
 
   const winners = items.filter(i => i.value > 0).length;
   const losers  = items.filter(i => i.value < 0).length;
@@ -87,12 +104,14 @@ function HorizontalBarChart({ items, title, valueLabel, sub, action }: {
           {sub && <p className="text-gray-500 text-xs mt-0.5">{sub}</p>}
         </div>
         {action && <div>{action}</div>}
-        <div className="flex gap-3 text-xs flex-wrap">
-          <span className="text-gray-400"><span className="text-emerald-400 font-medium">▲ {winners}</span> winners</span>
-          <span className="text-gray-400"><span className="text-red-400 font-medium">▼ {losers}</span> losers</span>
-          {best  && <span className="text-gray-400">Best: <span className="text-emerald-400 font-medium">{fmtPct(best.value)}</span></span>}
-          {worst && <span className="text-gray-400">Worst: <span className="text-red-400 font-medium">{fmtPct(worst.value)}</span></span>}
-        </div>
+        {showWinLoss ? (
+          <div className="flex gap-3 text-xs flex-wrap">
+            <span className="text-gray-400"><span className="text-emerald-400 font-medium">▲ {winners}</span> winners</span>
+            <span className="text-gray-400"><span className="text-red-400 font-medium">▼ {losers}</span> losers</span>
+            {best  && <span className="text-gray-400">Best: <span className="text-emerald-400 font-medium">{fmtPct(best.value)}</span></span>}
+            {worst && <span className="text-gray-400">Worst: <span className="text-red-400 font-medium">{fmtPct(worst.value)}</span></span>}
+          </div>
+        ) : footer}
       </div>
       <div style={{ position: 'relative', width: '100%', height: `${height}px`, minHeight: '300px' }}>
         <canvas ref={chartRef} />
@@ -124,8 +143,11 @@ export default function PortfolioPerformancePage() {
   const [portfolio,         setPortfolio]         = useState<PortfolioSummary | null>(null);
   const [transactions,      setTransactions]      = useState<Transaction[]>([]);
   const [monthlyPerfMap,    setMonthlyPerfMap]    = useState<Record<string, number>>({});
+  const [volMap,            setVolMap]            = useState<Record<string, number>>({});
+  const [volLoading,        setVolLoading]        = useState(true);
   const [soyPrices,         setSoyPrices]         = useState<Record<string, number>>({});
   const [sincePurchaseSort, setSincePurchaseSort] = useState<'performance' | 'date'>('performance');
+  const [volSort,           setVolSort]           = useState<'match' | 'volatility'>('match');
   const [bottomChartMode,   setBottomChartMode]   = useState<'monthly' | 'ytd'>('monthly');
   const [loading,           setLoading]           = useState(true);
   const [monthlyLoading,    setMonthlyLoading]    = useState(true);
@@ -171,23 +193,57 @@ export default function PortfolioPerformancePage() {
     }
   }, []);
 
+  const loadVolatility = useCallback(async (holdings: HoldingWithPrice[]) => {
+    setVolLoading(true);
+    try {
+      const tickers = holdings.map(h => h.ticker).filter(Boolean);
+      const res = await fetch(`/api/watchlist/quote?tickers=${encodeURIComponent(tickers.join(','))}`);
+      const data = await res.json() as Record<string, { volatility?: number }>;
+      const map: Record<string, number> = {};
+      for (const [ticker, val] of Object.entries(data))
+        if (val.volatility && val.volatility > 0) map[ticker] = val.volatility;
+      setVolMap(map);
+    } catch (err) {
+      console.error('Volatility error:', err);
+    } finally {
+      setVolLoading(false);
+    }
+  }, []);
+
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => {
-    if (portfolio?.holdings.length) loadMonthlyPerf(portfolio.holdings);
-  }, [portfolio, loadMonthlyPerf]);
+    if (portfolio?.holdings.length) {
+      loadMonthlyPerf(portfolio.holdings);
+      loadVolatility(portfolio.holdings);
+    }
+  }, [portfolio, loadMonthlyPerf, loadVolatility]);
 
   const purchaseDates = firstPurchaseDates(transactions);
 
-  const sincePurchaseItems: BarItem[] = (portfolio?.holdings ?? [])
+  // Shared ordering for the left chart; the volatility chart reuses it in "match" mode
+  // so the two charts line up row-for-row.
+  const sortedHoldings = (portfolio?.holdings ?? [])
     .slice()
     .sort((a, b) => sincePurchaseSort === 'date'
       ? (purchaseDates.get(b.holdingId) ?? '').localeCompare(purchaseDates.get(a.holdingId) ?? '')
-      : b.pnlPercent - a.pnlPercent)
-    .map(h => ({
-      label:    h.name.split(' ')[0],
-      subLabel: purchaseDates.has(h.holdingId) ? fmtDate(purchaseDates.get(h.holdingId)!) : undefined,
-      value:    h.pnlPercent,
-    }));
+      : b.pnlPercent - a.pnlPercent);
+
+  const sincePurchaseItems: BarItem[] = sortedHoldings.map(h => ({
+    label:    h.name.split(' ')[0],
+    subLabel: purchaseDates.has(h.holdingId) ? fmtDate(purchaseDates.get(h.holdingId)!) : undefined,
+    value:    h.pnlPercent,
+  }));
+
+  const volHoldings = sortedHoldings.filter(h => volMap[h.ticker] != null);
+  const toVolItems = (holdings: HoldingWithPrice[]): BarItem[] =>
+    holdings.map(h => ({ label: h.name.split(' ')[0], value: volMap[h.ticker] }));
+  // Desktop respects the Match / Low→High toggle.
+  const volatilityItems = toVolItems(volSort === 'volatility'
+    ? volHoldings.slice().sort((a, b) => volMap[a.ticker] - volMap[b.ticker])
+    : volHoldings);
+  // Mobile is always low→high (no toggle).
+  const volatilityItemsLowHigh = toVolItems(
+    volHoldings.slice().sort((a, b) => volMap[a.ticker] - volMap[b.ticker]));
 
   const thisMonthItems: BarItem[] = (portfolio?.holdings ?? [])
     .filter(h => monthlyPerfMap[h.ticker] != null)
@@ -230,6 +286,61 @@ export default function PortfolioPerformancePage() {
     ? 'Rolling 30-day window'
     : '2 Jan 2026 → today';
 
+  // 1-year volatility chart. Rendered twice: top-right on desktop (with sort
+  // toggle), bottom on mobile (always low→high, no toggle).
+  const volSortToggle = (
+    <div className="flex rounded-lg border border-gray-700 overflow-hidden text-xs">
+      <button
+        onClick={() => setVolSort('match')}
+        title="Same order as the chart on the left"
+        className={`px-3 py-1.5 transition-colors ${volSort === 'match' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+      >
+        Match
+      </button>
+      <button
+        onClick={() => setVolSort('volatility')}
+        title="Sort by volatility, low to high"
+        className={`px-3 py-1.5 transition-colors border-l border-gray-700 ${volSort === 'volatility' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+      >
+        Low → High
+      </button>
+    </div>
+  );
+
+  const renderVolChart = (items: BarItem[], action?: React.ReactNode) =>
+    volLoading ? (
+      <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 flex items-center justify-center min-h-[300px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500 mx-auto" />
+          <p className="mt-2 text-gray-400 text-xs">Calculating volatility from Yahoo Finance...</p>
+        </div>
+      </div>
+    ) : items.length > 0 ? (
+      <HorizontalBarChart
+        items={items}
+        title="Volatility (1-Year)"
+        valueLabel="Annualized volatility (%)"
+        sub="Annualized stdev of daily returns"
+        colorFn={volColor}
+        tooltipFormat={fmtVol}
+        axisMin={0}
+        axisMax={volAxisMax(items.map(i => i.value))}
+        showWinLoss={false}
+        action={action}
+        footer={
+          <div className="flex gap-3 text-xs flex-wrap text-gray-400">
+            <span><span className="text-emerald-400 font-medium">●</span> Low &lt;20%</span>
+            <span><span className="text-amber-400 font-medium">●</span> Med 20–40%</span>
+            <span><span className="text-red-400 font-medium">●</span> High &gt;40%</span>
+          </div>
+        }
+      />
+    ) : (
+      <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 flex items-center justify-center min-h-[300px] text-gray-500 text-sm">
+        No volatility data available
+      </div>
+    );
+
   if (loading) return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <Navigation />
@@ -267,9 +378,9 @@ export default function PortfolioPerformancePage() {
           </p>
         </div>
 
-        {/* Performance of stock since purchase */}
-        {sincePurchaseItems.length > 0 && (
-          <div className="mb-6">
+        {/* Performance since purchase + volatility, side by side on desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {sincePurchaseItems.length > 0 && (
             <HorizontalBarChart
               items={sincePurchaseItems}
               title="Performance of Individual Stocks Since Purchase"
@@ -291,8 +402,11 @@ export default function PortfolioPerformancePage() {
                 </div>
               }
             />
-          </div>
-        )}
+          )}
+
+          {/* 1-year volatility — top-right on desktop, with the sort toggle */}
+          <div className="hidden lg:block">{renderVolChart(volatilityItems, volSortToggle)}</div>
+        </div>
 
         {/* Performance of stock this month / YTD */}
         <div className="mb-6">
@@ -317,6 +431,9 @@ export default function PortfolioPerformancePage() {
             </div>
           )}
         </div>
+
+        {/* 1-year volatility — mobile only, at the bottom; always low→high, no toggle */}
+        <div className="lg:hidden mb-6">{renderVolChart(volatilityItemsLowHigh)}</div>
 
       </div>
     </div>

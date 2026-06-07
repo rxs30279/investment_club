@@ -112,6 +112,7 @@ export interface WatchlistQuote {
   high52: number;           // pounds
   low52: number;            // pounds
   riskScore: number;        // 1 (low) .. 10 (high), from annualised volatility
+  volatility: number;       // annualized % (stdev of daily log returns × √252)
 }
 
 export interface WatchlistNewsItem {
