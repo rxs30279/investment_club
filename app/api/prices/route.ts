@@ -46,8 +46,11 @@ export async function GET() {
 
     return NextResponse.json(Object.fromEntries(entries), {
       headers: {
-        // Cache for 1 hour — current prices don't need to be real-time for this dashboard
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=600',
+        // Cache for 60s only. This response's cache key has no params, so it
+        // doesn't change when holdings change — a long TTL meant a newly added
+        // ticker was absent from the cached map and rendered as £0 until the
+        // cache expired. A short TTL lets new holdings price within a minute.
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
       },
     });
   } catch (error) {
