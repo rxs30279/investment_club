@@ -238,7 +238,6 @@ export default function HoldingsPage() {
   const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSector, setSelectedSector] = useState<string>('All');
   const [stockRanges, setStockRanges] = useState<Record<string, { high: number; low: number }>>({});
 
   const loadData = useCallback(async () => {
@@ -283,9 +282,6 @@ export default function HoldingsPage() {
     loadData();
   }, [loadData]);
 
-  // Prepare pie chart data
-  const sectors = useMemo(() => ['All', ...new Set(portfolio?.holdings.map(h => h.sector) || [])], [portfolio]);
-
   const getRangePos = (ticker: string, currentPrice: number) => {
     let { low, high } = stockRanges[ticker] || { low: 0, high: 0 };
     if (low > 100 || high > 100) { low /= 100; high /= 100; }
@@ -294,9 +290,7 @@ export default function HoldingsPage() {
   };
 
   const groupedHoldings = useMemo(() => {
-    const holdings = selectedSector === 'All'
-      ? (portfolio?.holdings ?? [])
-      : (portfolio?.holdings ?? []).filter(h => h.sector === selectedSector);
+    const holdings = portfolio?.holdings ?? [];
     const map = new Map<string, Position[]>();
     for (const h of holdings) {
       if (!map.has(h.sector)) map.set(h.sector, []);
@@ -312,7 +306,7 @@ export default function HoldingsPage() {
       const avgB = b.reduce((s, h) => s + getRangePos(h.ticker, h.currentPrice), 0) / b.length;
       return avgB - avgA;
     });
-  }, [portfolio, selectedSector, stockRanges]);
+  }, [portfolio, stockRanges]);
 
   const getRange = (ticker: string) => {
     return stockRanges[ticker] || { high: 0, low: 0 };
@@ -358,24 +352,6 @@ export default function HoldingsPage() {
             <p className="text-sm text-gray-400 mt-1">Stocks grouped by sector</p>
           </div>
           <RefreshButton onRefresh={loadData} />
-        </div>
-
-        {/* Sector Filter */}
-        <div className="flex gap-1.5 sm:gap-2 mb-4 flex-wrap">
-          {sectors.map(sector => {
-            const color = sector === 'All' ? '#10b981' : (sectorColors[sector] ?? '#6b7280');
-            const isActive = selectedSector === sector;
-            return (
-              <button
-                key={sector}
-                onClick={() => setSelectedSector(sector)}
-                style={isActive ? { backgroundColor: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}
-                className={`px-2.5 py-1 text-xs sm:px-4 sm:py-1.5 sm:text-sm rounded-full border transition-colors ${isActive ? '' : 'bg-transparent hover:opacity-80'} ${sector === 'Technology' ? 'ml-3 sm:ml-0' : ''}`}
-              >
-                {sector} {sector !== 'All' && `(${portfolio.holdings.filter(h => h.sector === sector).length})`}
-              </button>
-            );
-          })}
         </div>
 
         {/* Holdings Table */}
