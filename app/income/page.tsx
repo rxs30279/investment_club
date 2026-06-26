@@ -347,7 +347,7 @@ export default function IncomePage() {
                                           <span className="text-emerald-400 ml-1" title="Received by the club">✓</span>
                                         )}
                                       </div>
-                                      <div className={preOwned ? 'text-gray-700 text-xs' : 'text-gray-600 text-xs'}>{fmtShortDate(d.date)}</div>
+                                      <div className={preOwned ? 'text-gray-500 text-xs' : 'text-gray-400 text-xs'}>{fmtShortDate(d.date)}</div>
                                     </>
                                   ) : (
                                     <span className="text-gray-700">—</span>
