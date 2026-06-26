@@ -147,7 +147,7 @@ export default function PortfolioPerformancePage() {
   const [volLoading,        setVolLoading]        = useState(true);
   const [soyPrices,         setSoyPrices]         = useState<Record<string, number>>({});
   const [sincePurchaseSort, setSincePurchaseSort] = useState<'performance' | 'date'>('performance');
-  const [volSort,           setVolSort]           = useState<'match' | 'volatility'>('match');
+  const [showVolatility,    setShowVolatility]    = useState(false);
   const [bottomChartMode,   setBottomChartMode]   = useState<'monthly' | 'ytd'>('monthly');
   const [loading,           setLoading]           = useState(true);
   const [monthlyLoading,    setMonthlyLoading]    = useState(true);
@@ -237,12 +237,8 @@ export default function PortfolioPerformancePage() {
   const volHoldings = sortedHoldings.filter(h => volMap[h.ticker] != null);
   const toVolItems = (holdings: HoldingWithPrice[]): BarItem[] =>
     holdings.map(h => ({ label: h.name.split(' ')[0], value: volMap[h.ticker] }));
-  // Desktop respects the Match / Low→High toggle.
-  const volatilityItems = toVolItems(volSort === 'volatility'
-    ? volHoldings.slice().sort((a, b) => volMap[a.ticker] - volMap[b.ticker])
-    : volHoldings);
-  // Mobile is always low→high (no toggle).
-  const volatilityItemsLowHigh = toVolItems(
+  // Always ranked low → high volatility.
+  const volatilityItems = toVolItems(
     volHoldings.slice().sort((a, b) => volMap[a.ticker] - volMap[b.ticker]));
 
   const thisMonthItems: BarItem[] = (portfolio?.holdings ?? [])
@@ -286,27 +282,8 @@ export default function PortfolioPerformancePage() {
     ? 'Rolling 30-day window'
     : '2 Jan 2026 → today';
 
-  // 1-year volatility chart. Rendered twice: top-right on desktop (with sort
-  // toggle), bottom on mobile (always low→high, no toggle).
-  const volSortToggle = (
-    <div className="flex rounded-lg border border-gray-700 overflow-hidden text-xs">
-      <button
-        onClick={() => setVolSort('match')}
-        title="Same order as the chart on the left"
-        className={`px-3 py-1.5 transition-colors ${volSort === 'match' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-      >
-        Match
-      </button>
-      <button
-        onClick={() => setVolSort('volatility')}
-        title="Sort by volatility, low to high"
-        className={`px-3 py-1.5 transition-colors border-l border-gray-700 ${volSort === 'volatility' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-      >
-        Low → High
-      </button>
-    </div>
-  );
-
+  // 1-year volatility chart. Rendered once, inside the collapsible dropdown at
+  // the bottom of the page; always ranked low → high.
   const renderVolChart = (items: BarItem[], action?: React.ReactNode) =>
     volLoading ? (
       <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 flex items-center justify-center min-h-[300px]">
@@ -378,8 +355,8 @@ export default function PortfolioPerformancePage() {
           </p>
         </div>
 
-        {/* Performance since purchase + volatility, side by side on desktop */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Performance since purchase — full width (volatility moved to a dropdown below) */}
+        <div className="mb-6">
           {sincePurchaseItems.length > 0 && (
             <HorizontalBarChart
               items={sincePurchaseItems}
@@ -403,9 +380,6 @@ export default function PortfolioPerformancePage() {
               }
             />
           )}
-
-          {/* 1-year volatility — top-right on desktop, with the sort toggle */}
-          <div className="hidden lg:block">{renderVolChart(volatilityItems, volSortToggle)}</div>
         </div>
 
         {/* Performance of stock this month / YTD */}
@@ -432,8 +406,25 @@ export default function PortfolioPerformancePage() {
           )}
         </div>
 
-        {/* 1-year volatility — mobile only, at the bottom; always low→high, no toggle */}
-        <div className="lg:hidden mb-6">{renderVolChart(volatilityItemsLowHigh)}</div>
+        {/* 1-year volatility — hidden by default, revealed via this dropdown */}
+        <div className="mb-6">
+          <button
+            onClick={() => setShowVolatility(v => !v)}
+            aria-expanded={showVolatility}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-gray-900/50 rounded-xl border border-gray-800 text-left hover:bg-gray-800/50 transition-colors"
+          >
+            <span className="text-white font-medium text-sm">Volatility (1-Year)</span>
+            <svg
+              className={`w-5 h-5 text-gray-400 transition-transform ${showVolatility ? 'rotate-180' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {showVolatility && (
+            <div className="mt-4">{renderVolChart(volatilityItems)}</div>
+          )}
+        </div>
 
       </div>
     </div>
