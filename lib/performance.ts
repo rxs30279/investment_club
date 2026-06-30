@@ -74,7 +74,12 @@ export async function syncUnitValues(): Promise<{
  * Fetch rebased FTSE 100 + FTSE 250 data for the exact portfolio valuation dates.
  * Passing all dates lets the API return closes for those specific days rather than
  * relying on monthly interval timestamps (which don't align with end-of-month dates).
- * `cache: 'force-cache'` means the browser won't re-fetch within the same session.
+ *
+ * Caching is left to the response's Cache-Control headers (the route sets
+ * s-maxage + stale-while-revalidate). We deliberately avoid `cache: 'force-cache'`
+ * here: it reuses any stored response without revalidating, so a transient error
+ * (e.g. a 404 while the dev server is restarting) would get cached and served
+ * stale indefinitely.
  */
 export async function fetchBenchmarkData(fromDate?: string, dates?: string[]): Promise<BenchmarkData> {
   try {
@@ -86,7 +91,7 @@ export async function fetchBenchmarkData(fromDate?: string, dates?: string[]): P
     }
 
     const url = `/api/performance/benchmarks${params.size ? '?' + params.toString() : ''}`;
-    const res = await fetch(url, { cache: 'force-cache' });
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Benchmarks request failed: ${res.status}`);
     return await res.json();
   } catch (err) {

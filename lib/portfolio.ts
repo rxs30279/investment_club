@@ -218,7 +218,9 @@ export async function fetchFTSEData(fromDate: string): Promise<{
   ftse250: { date: string; value: number }[];
 }> {
   try {
-    const res = await fetch(`/api/performance/benchmarks?from=${fromDate}`, { cache: 'force-cache' });
+    // No `force-cache`: it would serve a stale cached response (incl. a transient
+    // error) without revalidating. Caching is handled by the route's Cache-Control.
+    const res = await fetch(`/api/performance/benchmarks?from=${fromDate}`);
     if (!res.ok) throw new Error('Failed to fetch FTSE data');
     return await res.json();
   } catch (err) {
