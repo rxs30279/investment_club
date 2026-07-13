@@ -148,6 +148,21 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
+  // Shape check before any work — the cast above doesn't validate anything, and
+  // garbage here otherwise surfaces as a confusing crash mid-generation.
+  if (Array.isArray(body.positions)) {
+    body.positions = body.positions.filter(p => p && typeof p === 'object' && typeof p.ticker === 'string');
+  }
+  if (!Array.isArray(body.positions) || body.positions.length === 0 ||
+      !Array.isArray(body.unitValues) ||
+      typeof body.reportMonth !== 'string' || !body.reportMonth.trim()) {
+    return Response.json(
+      { error: 'Invalid request body: expected non-empty positions[] (objects with a ticker), unitValues[] and reportMonth.' },
+      { status: 400 }
+    );
+  }
+  if (typeof body.monthlyPerf !== 'object' || body.monthlyPerf === null) body.monthlyPerf = {};
+
   // Stream NDJSON events back to the client. Without this, the connection sits
   // idle for ~140s while DeepSeek generates, and intermediaries (browser tab,
   // proxies) close it with "Failed to fetch". Per-chunk progress events keep
