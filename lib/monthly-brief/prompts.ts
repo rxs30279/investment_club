@@ -80,7 +80,7 @@ export function buildPart2aMessage(
   // discussing the portfolio, but they are NOT rendered as a separate card —
   // members can read them on the /monthly-brief page directly.
   const memberBlock = userArticles?.trim()
-    ? 'MEMBER READING LIST (background context only — articles shared by club members. Do NOT render these as a list, card, table, dropdown, or any other visible block in the report. Use them silently to inform your analysis of themes and holdings where directly relevant):\n' + userArticles + '\n\n'
+    ? 'MEMBER READING LIST (background context only — articles shared by club members. Do NOT render these as a list, card, table, dropdown, or any other visible block in the report. Use them silently to inform your analysis of themes and holdings where directly relevant):\n' + cap(userArticles, 6000) + '\n\n'
     : '';
 
   const sections = [
@@ -88,13 +88,14 @@ export function buildPart2aMessage(
     'labelled "PART TWO: CLUB ASSETS & THE MARKET" with a short subtitle "How our holdings relate to current market conditions." ' +
     'Style it as a dark card with an emerald accent border.',
 
-    '4. PRESS COVERAGE — Use the PRESS NEWS data below. ' +
+    '4. PRESS COVERAGE — Begin the section with <div class="section"><h2>4. Press Coverage</h2> — the heading MUST start with exactly "4. Press Coverage" (a suffix after it is fine, nothing before it). ' +
+    'Use the PRESS NEWS data below. ' +
     'Table: Date | Ticker | Company | Headline | Source | Impact (Positive / Negative / Neutral). ' +
     'CRITICAL: every <tr> MUST contain exactly 6 <td> cells in this order. Never omit a cell, never merge with colspan. ' +
     'If a value is unknown (e.g. company name not in PORTFOLIO), still include the cell with a sensible value (e.g. the ticker without ".L") — never leave it blank or drop the <td>. ' +
     'Select the 10–15 most significant stories; prioritise FT and Bloomberg sources. ' +
     'For the Impact cell, render exactly: <td class="nowrap" style="text-align:center">🟢 Positive</td> (or 🟡 Neutral / 🔴 Negative). The class="nowrap" is REQUIRED — without it the emoji and label wrap onto two lines and overflow the cell. ' +
-    'Dropdown: one paragraph analysis per key story explaining what it means for the holding.',
+    'Dropdown: short analysis (2–3 sentences MAX) for each of the 5–8 most important stories only, explaining what it means for the holding. Do NOT analyse every table row — your total output must stay well under the token limit.',
   ].join('\n\n');
 
   return (
@@ -173,7 +174,8 @@ export function buildPart3aMessage(
   currentDate: string,
 ): string {
   const section6 =
-    '6. SECTOR SCORECARD — Keep this SIMPLE: a single sector table and nothing else. ' +
+    '6. SECTOR SCORECARD — Begin directly with <div class="section"><h2>6. Sector Scorecard</h2> — the heading MUST start with exactly "6. Sector Scorecard" (a suffix after it is fine, nothing before it). ' +
+    'Keep this SIMPLE: a single sector table and nothing else. ' +
     'Do NOT include a forward compass, an FTSE100 vs FTSE250 deep dive, a separate theme tracker table, or a bull/bear dropdown. ' +
     'One short intro sentence, then ONE table with these columns: Sector | Our Holdings | Our Move (last 30 days) | Outlook. ' +
     'One row per sector the club holds, sorted by Our Move best to worst. ' +
@@ -205,7 +207,7 @@ export function buildPart3bMessage(
   currentDate: string,
 ): string {
   const sections = [
-    '7. RESULTS & CORPORATE ACTIONS — Use ONLY the MATERIAL RNS DATA provided. Do NOT add items from your training knowledge, do NOT recall past announcements, and do NOT supplement. If the data is short, the table is short. ' +
+    '7. RESULTS & CORPORATE ACTIONS — Begin directly with <div class="section"><h2>7. Results & Corporate Actions</h2> (the heading MUST start with "7. Results"). Use ONLY the MATERIAL RNS DATA provided. Do NOT add items from your training knowledge, do NOT recall past announcements, and do NOT supplement. If the data is short, the table is short. ' +
     'For each item: Ticker | Company | Category | Date | Key numbers from summary | Verdict (Beat/In-line/Miss/Transformative). ' +
     'For the Verdict cell, wrap just the emoji + verdict word in a nowrap span so they cannot split across lines: <td><span class="nowrap">🟢 Beat</span> — growth story intact</td>. The descriptive part after the em-dash may wrap. ' +
     'Group by category. Aggregated rows (headline contains "× ... announcements") describe a recurring programme — render them as one row each, do NOT split them back out. ' +
@@ -236,7 +238,7 @@ export function buildPart3cMessage(
   currentDate: string,
 ): string {
   const sections = [
-    '8. DIRECTOR DEALINGS — Use the DIRECTOR DEALINGS DATA provided (live from Investegate). ' +
+    '8. DIRECTOR DEALINGS — Begin with <h2>8. Director Dealings</h2> (the heading MUST start with "8. Director Dealings"; a suffix is fine). Use the DIRECTOR DEALINGS DATA provided (live from Investegate). ' +
     'Include ONLY strong signals: material insider BUYS, or SELLS that are large as a percentage of the holding or made by a senior director (CEO / CFO / Chair). ' +
     'OMIT small or routine dealings — option/award exercises, scrip-dividend take-ups, and trivial admin trades. ' +
     'Table: Date | Ticker | Company | Director/Role | Buy/Sell | Shares | Price (p) | Value £ | Signal. ' +
@@ -244,7 +246,7 @@ export function buildPart3cMessage(
     'If no strong dealings, say so clearly. Interpret sentiment: buying = bullish insider signal, selling = neutral unless large % of holding. ' +
     'Dropdown: context on each dealing.',
 
-    '9. ONE TO WATCH — One holding needing attention next month. 3–4 sentences. Index, theme, ETF flow context.',
+    '9. ONE TO WATCH — Begin with <h2>9. One to Watch</h2> (the heading MUST start with "9. One to Watch"; a suffix naming the holding is fine). One holding needing attention next month. 3–4 sentences. Index, theme, ETF flow context.',
   ].join('\n\n');
 
   return (

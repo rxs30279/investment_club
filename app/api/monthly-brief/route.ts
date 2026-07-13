@@ -55,20 +55,55 @@ export const maxDuration = 300;
 
 // Each promised section must appear as an h2 or h3 heading. If one is missing
 // the model dropped it — refuse to save rather than ship a broken report.
-const REQUIRED_SECTIONS: { label: string; pattern: RegExp }[] = [
-  { label: '1. The Big Picture',                pattern: /<h[23][^>]*>\s*1\.\s*The Big Picture/i },
-  { label: '2. ETF Flow Signal',                pattern: /<h[23][^>]*>\s*2\.\s*ETF Flow Signal/i },
-  { label: '3. Outlook',                        pattern: /<h[23][^>]*>\s*3\.\s*Outlook/i },
-  { label: '4. Press Coverage',                 pattern: /<h[23][^>]*>\s*4\.\s*Press Coverage/i },
-  { label: '5. Portfolio vs Market',            pattern: /<h[23][^>]*>\s*5\.\s*Portfolio vs Market/i },
-  { label: '6. Sector Scorecard',               pattern: /<h[23][^>]*>[^<]*6\.[^<]*Sector Scorecard/i },
-  { label: '7. Results & Corporate Actions',    pattern: /<h[23][^>]*>[^<]*7\.[^<]*Results/i },
-  { label: '8. Director Dealings',              pattern: /<h[23][^>]*>[^<]*8\.[^<]*Director Dealings/i },
-  { label: '9. One to Watch',                   pattern: /<h[23][^>]*>[^<]*9\.[^<]*One to Watch/i },
+// Patterns allow anything before the number ([^<]*) because the model decorates
+// headings freely (emoji, "Section", etc.). `part` maps each section to the
+// DeepSeek call that produces it, so a bad part can be retried on its own.
+type PartLabel = '1' | '2a' | '2b' | '3a' | '3b' | '3c';
+const REQUIRED_SECTIONS: { label: string; part: PartLabel; pattern: RegExp }[] = [
+  { label: '1. The Big Picture',                part: '1',  pattern: /<h[23][^>]*>[^<]*1\.[^<]*The Big Picture/i },
+  { label: '2. ETF Flow Signal',                part: '1',  pattern: /<h[23][^>]*>[^<]*2\.[^<]*ETF Flow Signal/i },
+  { label: '3. Outlook',                        part: '1',  pattern: /<h[23][^>]*>[^<]*3\.[^<]*Outlook/i },
+  { label: '4. Press Coverage',                 part: '2a', pattern: /<h[23][^>]*>[^<]*4\.[^<]*Press Coverage/i },
+  { label: '5. Portfolio vs Market',            part: '2b', pattern: /<h[23][^>]*>[^<]*5\.[^<]*Portfolio vs Market/i },
+  { label: '6. Sector Scorecard',               part: '3a', pattern: /<h[23][^>]*>[^<]*6\.[^<]*Sector Scorecard/i },
+  { label: '7. Results & Corporate Actions',    part: '3b', pattern: /<h[23][^>]*>[^<]*7\.[^<]*Results/i },
+  { label: '8. Director Dealings',              part: '3c', pattern: /<h[23][^>]*>[^<]*8\.[^<]*Director Dealings/i },
+  { label: '9. One to Watch',                   part: '3c', pattern: /<h[23][^>]*>[^<]*9\.[^<]*One to Watch/i },
 ];
 
 function findMissingSections(html: string): string[] {
   return REQUIRED_SECTIONS.filter(s => !s.pattern.test(html)).map(s => s.label);
+}
+
+// Why is this part unusable, or null if it's fine. Checked per part so a single
+// flaky call can be retried without regenerating the other five.
+function partProblem(part: PartLabel, result: { output: string; truncated: boolean }): string | null {
+  if (!result.output.trim()) return 'empty output';
+  if (result.truncated) return 'truncated (hit max_tokens)';
+  const missing = REQUIRED_SECTIONS
+    .filter(s => s.part === part && !s.pattern.test(result.output))
+    .map(s => s.label);
+  return missing.length > 0 ? `missing sections: ${missing.join(', ')}` : null;
+}
+
+async function generatePart(
+  part: PartLabel,
+  chunkId: number,
+  message: string,
+  send: (obj: object) => void,
+) {
+  const first = await callDeepSeek(SYSTEM_PROMPT, message, chars => send({ type: 'chunk', part: chunkId, chars }));
+  const problem = partProblem(part, first);
+  if (!problem) return first;
+
+  console.warn(`[monthly-brief] Part ${part} ${problem} — retrying once.`);
+  send({ type: 'progress', stage: 'retrying', part });
+  const second = await callDeepSeek(SYSTEM_PROMPT, message, chars => send({ type: 'chunk', part: chunkId, chars }));
+  if (!partProblem(part, second)) return second;
+
+  console.warn(`[monthly-brief] Part ${part} retry also failed: ${partProblem(part, second)}`);
+  // Both attempts bad — keep the first so downstream validation reports it.
+  return first;
 }
 
 // Detect tables where data rows have a different cell count from the header.
@@ -202,12 +237,12 @@ export async function POST(request: NextRequest) {
         send({ type: 'progress', stage: 'generating' });
 
         const [part1, part2a, part2b, part3a, part3b, part3c] = await Promise.all([
-          callDeepSeek(SYSTEM_PROMPT, part1Message,  chars => send({ type: 'chunk', part: 1,   chars })),
-          callDeepSeek(SYSTEM_PROMPT, part2aMessage, chars => send({ type: 'chunk', part: 2,   chars })),
-          callDeepSeek(SYSTEM_PROMPT, part2bMessage, chars => send({ type: 'chunk', part: 2.5, chars })),
-          callDeepSeek(SYSTEM_PROMPT, part3aMessage, chars => send({ type: 'chunk', part: 3,   chars })),
-          callDeepSeek(SYSTEM_PROMPT, part3bMessage, chars => send({ type: 'chunk', part: 3.5, chars })),
-          callDeepSeek(SYSTEM_PROMPT, part3cMessage, chars => send({ type: 'chunk', part: 3.7, chars })),
+          generatePart('1',  1,   part1Message,  send),
+          generatePart('2a', 2,   part2aMessage, send),
+          generatePart('2b', 2.5, part2bMessage, send),
+          generatePart('3a', 3,   part3aMessage, send),
+          generatePart('3b', 3.5, part3bMessage, send),
+          generatePart('3c', 3.7, part3cMessage, send),
         ]);
 
         console.log('[monthly-brief] All parts done. Raw lengths:',
